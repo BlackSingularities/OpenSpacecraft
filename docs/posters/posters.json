@@ -1,0 +1,22 @@
+{
+  "slug": "openspacecraft",
+  "name": "OpenSpacecraft",
+  "label": "atlas misji kosmicznych 3D",
+  "icon": "icon.png",
+  "url": "https://redzikowski.com/portfolio/openspacecraft",
+  "posters": [
+    {
+      "platform": "windows",
+      "file": "windows.png",
+      "title": "Cała era kosmiczna *w trzech wymiarach*",
+      "lead": "Układ Słoneczny w dowolnej chwili od Sputnika: odtwarzanie misji po prawdziwych trajektoriach, satelity na orbicie i wszystkie starty orbitalne.",
+      "shots": [
+        { "src": "../screenshots/windows/01-ziemia.png", "caption": "Satelity na orbicie" },
+        { "src": "../screenshots/windows/02-voyager-2.png", "caption": "Wielka podróż Voyagera 2" },
+        { "src": "../screenshots/windows/03-starty.png", "caption": "Starty i kosmodromy" }
+      ],
+      "features": ["trajektorie JPL Horizons", "85 misji od 1957 r.", "60 tys. obiektów SATCAT", "SGP4", "starty z każdego roku", "polski i angielski"],
+      "meta": "Windows 10 i 11"
+    }
+  ]
+}

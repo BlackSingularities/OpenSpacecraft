@@ -1,0 +1,53 @@
+[package]
+name = "openspacecraft"
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.88"
+description = "OpenSpacecraft — atlas misji kosmicznych 3D dla Windows"
+authors = ["BlackSingularities"]
+build = "build.rs"
+
+[[bin]]
+name = "OpenSpacecraft"
+path = "src/main.rs"
+
+[dependencies]
+eframe = { version = "0.33", default-features = false, features = ["wgpu", "default_fonts", "persistence"] }
+wgpu = "27"
+bytemuck = { version = "1", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ureq = { version = "2.12", default-features = false, features = ["tls", "gzip", "proxy-from-env"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+egui-phosphor = "0.11"
+glam = { version = "0.30", features = ["bytemuck"] }
+rayon = "1.10"
+sha2 = "0.10"
+base64 = "0.22"
+open = "5"
+log = "0.4"
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+env_logger = { version = "0.11", default-features = false, features = ["humantime"] }
+sgp4 = "2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_Globalization"] }
+
+[build-dependencies]
+winresource = "0.1"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[dev-dependencies]
+naga = { version = "27", features = ["wgsl-in"] }

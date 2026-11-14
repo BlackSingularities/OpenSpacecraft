@@ -1,0 +1,257 @@
+# OpenSpacecraft – English. Polski oryginał<TAB>English. {} – wstawiana wartość.
+Masz najnowszą wersję ({}).	You have the latest version ({}).
+Nie udało się sprawdzić aktualizacji: {}	Could not check for updates: {}
+Dostępna wersja {}	Version {} is available
+Zainstaluj	Install
+Później	Later
+{} lat {} d	{} y {} d
+{} lat/s	{} y/s
+{:.2} lat	{:.2} years
+Za dużo zgłoszeń – spróbuj później.	Too many reports – please try later.
+Serwer odrzucił zgłoszenie (HTTP {}).	The server rejected the report (HTTP {}).
+Brak połączenia z redzikowski.com: {}	Cannot reach redzikowski.com: {}
+Twój e-mail (opcjonalnie – jeśli chcesz odpowiedź)	Your e-mail (optional – if you want a reply)
+np. jan@example.com	e.g. john@example.com
+To nie wygląda na adres e-mail.	This does not look like an e-mail address.
+Zgłoś błąd lub sugestię	Report a bug or suggestion
+Dziękuję! Zgłoszenie dotarło.	Thank you! Your report has arrived.
+Przeczytam je i wezmę pod uwagę przy kolejnych wersjach.	I will read it and consider it for future versions.
+Przeczytam je i odezwę się na podany adres, jeśli będzie trzeba.	I will read it and reply to your address if needed.
+Zamknij	Close
+Błąd	Bug
+Sugestia funkcji	Feature suggestion
+Czego brakuje albo co można zrobić lepiej?	What is missing or could be better?
+Co się stało? Co robiłeś(-aś) tuż przed błędem?	What happened? What were you doing just before the error?
+Wysyłanie…	Sending…
+Wyślij	Send
+Anuluj	Cancel
+Zgłoszenie trafi do autora przez redzikowski.com.	The report goes to the author via redzikowski.com.
+Aplikacja została nieoczekiwanie zamknięta	The application closed unexpectedly
+Dziękuję! Raport został wysłany.	Thank you! The report has been sent.
+Przy ostatnim uruchomieniu wystąpił błąd. Czy wysłać raport, żeby można go było naprawić? Raport zawiera opis błędu, wersję aplikacji i systemu oraz końcówkę dziennika programu – żadnych Twoich plików.	An error occurred during the last run. Send a report so it can be fixed? It contains the error description, app and system version and the end of the program log – none of your files.
+Pokaż szczegóły	Show details
+Co robiłeś(-aś) przed awarią? (opcjonalnie)	What were you doing before the crash? (optional)
+Wyślij raport	Send report
+Nie wysyłaj	Don't send
+Załogowe	Crewed
+Stacje	Stations
+Księżycowe	Lunar
+Planetarne	Planetary
+Komety i planetoidy	Comets & asteroids
+Słoneczne	Solar
+Obserwatoria	Observatories
+Satelity	Satellites
+w trakcie	ongoing
+zakończona	completed
+niepowodzenie	failed
+międzynarodowa	international
+Człony rakiet	Rocket bodies
+Odłamki	Debris
+Nieznane	Unknown
+Niska (LEO)	Low (LEO)
+Średnia (MEO)	Medium (MEO)
+Geostacjonarna (GEO)	Geostationary (GEO)
+Wysoce eliptyczna (HEO)	Highly elliptical (HEO)
+Bajkonur	Baikonur
+Plesieck	Plesetsk
+Wostocznyj	Vostochny
+Jasnyj	Yasny
+Morze Żółte (start z morza)	Yellow Sea (sea launch)
+Swobodnyj	Svobodny
+CelesTrak zwrócił nieoczekiwaną odpowiedź.	CelesTrak returned an unexpected response.
+Wszystkie	All
+Nawigacja (GNSS)	Navigation (GNSS)
+Meteo	Weather
+Misje	Missions
+Starty	Launches
+Ciała	Bodies
+Nazwa, agencja, kraj, rok…	Name, agency, country, year…
+trwające teraz	ongoing now
+{} misji · {} trwa w tej chwili	{} missions · {} ongoing at this moment
+Lata {}.	{}s
+Kliknij – pokaż misję · dwuklik – odtwórz od startu	Click – show mission · double-click – replay from launch
+Pobieranie katalogu CelesTrak…	Downloading the CelesTrak catalogue…
+Brak danych – sprawdź połączenie z internetem	No data – check your internet connection
+{} obiektów · {} z aktualnymi elementami	{} objects · {} with current elements
+Pobierz najnowsze dane z CelesTrak	Download the latest data from CelesTrak
+Nie udało się odświeżyć danych: {}	Could not refresh data: {}
+Elementy orbitalne sprzed {:.0} h · katalog sprzed {:.0} h	Orbital elements {:.0} h old · catalogue {:.0} h old
+Pokaż obiekty na orbicie	Show objects in orbit
+Na orbicie {}	In orbit on {}
+Orbita	Orbit
+Grupa	Group
+Tylko działające satelity	Operational satellites only
+Na scenie: {} (dokładnie wg SGP4: {})	In view: {} (exact SGP4: {})
+Obiekty z aktualnymi elementami liczone są modelem SGP4. Pozostałe – także historyczne – krążą po orbitach odtworzonych z katalogu: wysokość, nachylenie i okres są prawdziwe, położenie na orbicie jest umowne.	Objects with current elements are propagated with SGP4. The others – including historical ones – follow orbits rebuilt from the catalogue: altitude, inclination and period are real, the position along the orbit is nominal.
+Obiekty na orbicie w kolejnych latach	Objects in orbit over the years
+Satelity wyniesione w danym roku	Satellites launched per year
+Szukaj obiektu	Find an object
+Nazwa albo numer NORAD (np. ISS, 25544)	Name or NORAD number (e.g. ISS, 25544)
+…i więcej – zawęź wyszukiwanie	…and more – narrow your search
+nie na orbicie	not in orbit
+Nic nie znaleziono.	Nothing found.
+Dane: CelesTrak (SATCAT, elementy GP), model SGP4.	Data: CelesTrak (SATCAT, GP elements), SGP4 model.
+Planeta, księżyc, planetoida, kometa…	Planet, moon, asteroid, comet…
+Gwiazda	Star
+Planety i ich księżyce	Planets and their moons
+Planety karłowate	Dwarf planets
+Planetoidy i komety – cele misji	Asteroids and comets – mission targets
+Punkty libracyjne	Lagrange points
+Położenia planet: teoria VSOP87 (Bretagnon i Francou), Księżyca: ELP-2000/82 w ujęciu Meeusa, planetoid i komet: elementy JPL SBDB. Parametry fizyczne, obrót i tekstury: symulator Orbiter (licencja MIT).	Planet positions: VSOP87 theory (Bretagnon & Francou), Moon: ELP-2000/82 after Meeus, asteroids and comets: JPL SBDB elements. Physical parameters, rotation and textures: Orbiter space flight simulator (MIT licence).
+rok symulacji	simulation year
+Pobieranie katalogu startów…	Downloading the launch catalogue…
+Brak katalogu startów – sprawdź połączenie z internetem	No launch catalogue – check your internet connection
+{} startów orbitalnych · {} satelitów	{} orbital launches · {} satellites
+Kosmodromy	Launch sites
+Starty w kolejnych latach	Launches per year
+Misje z bazy – odtwórz start	Missions in the database – replay the launch
+Wszystkie starty – kliknij, by odtworzyć	All launches – click to replay
+Starty pochodzą z katalogu SATCAT (CelesTrak): obiekty o wspólnym numerze COSPAR to jeden start. Katalog podaje tylko datę startu, więc odtworzenie zaczyna się o północy UTC tego dnia.	Launches come from the SATCAT catalogue (CelesTrak): objects sharing a COSPAR number form one launch. The catalogue gives only the launch date, so the replay starts at midnight UTC that day.
+brak danych	no data
+{}: satelity {}, człony rakiet {}, odłamki {}, inne {}	{}: satellites {}, rocket bodies {}, debris {}, other {}
+maks. {} / rok (skala pierwiastkowa)	max {} / year (square-root scale)
+{}: {} nowych satelitów	{}: {} new satellites
+maks. {} startów / rok	max {} launches / year
+{}: {} startów – kliknij, by wybrać rok	{}: {} launches – click to choose the year
+Szczegóły	Details
+Zamknij (Esc)	Close (Esc)
+w locie w tej chwili	in flight right now
+Odtwórz od startu	Replay from launch
+Śledź	Follow
+Kamera podąża za statkiem (F)	Camera follows the spacecraft (F)
+Koniec	End
+Stan w chwili {}	State at {}
+Liczenie trajektorii…	Computing trajectory…
+Do startu	Until launch
+Czas misji (MET)	Mission elapsed time
+Odległość od Ziemi	Distance from Earth
+Odległość od Słońca	Distance from the Sun
+Sygnał z Ziemi	Signal from Earth
+Wysokość ({})	Altitude ({})
+Prędkość ({})	Speed ({})
+Prędkość względem Słońca	Speed relative to the Sun
+JPL Horizons – rzeczywista trajektoria	JPL Horizons – real trajectory
+model fizyczny (łuki Keplera, przybliżenie)	physical model (Kepler arcs, approximate)
+Źródło położenia	Position source
+Statek nie istnieje już w tej chwili (powrót, deorbitacja albo zderzenie).	The spacecraft no longer exists at this moment (return, deorbit or impact).
+Dane misji	Mission data
+Start	Launch
+Czas trwania	Duration
+Rakieta nośna	Launch vehicle
+Miejsce startu	Launch site
+Masa	Mass
+Załoga	Crew
+Katalog NORAD	NORAD catalogue
+Pokaż obiekt w katalogu satelitów	Show the object in the satellite catalogue
+Osiągnięcia	Achievements
+Przebieg – kliknij, by przejść do chwili	Timeline – click to jump to the moment
+Obiekt niedostępny w katalogu.	Object not available in the catalogue.
+działa	operational
+Przejdź do startu	Go to launch
+Wysokość	Altitude
+Nad punktem	Above
+Prędkość	Speed
+Model	Model
+SGP4 – aktualne elementy orbitalne	SGP4 – current orbital elements
+orbita odtworzona z katalogu (położenie umowne)	orbit rebuilt from the catalogue (nominal position)
+Obiektu nie było w tej chwili na orbicie.	The object was not in orbit at this moment.
+Katalog	Catalogue
+Właściciel	Owner
+Wejście w atmosferę	Re-entry
+Okres obiegu	Orbital period
+Nachylenie	Inclination
+Perygeum / apogeum	Perigee / apogee
+W bazie misji	In the mission database
+gwiazda	star
+planeta	planet
+planeta karłowata	dwarf planet
+księżyc	moon
+planetoida / kometa	asteroid / comet
+punkt libracyjny	Lagrange point
+krąży wokół: {}	orbits: {}
+Pokaż z bliska	Close-up
+Światło z Ziemi	Light time from Earth
+Prędkość orbitalna	Orbital speed
+Parametry	Parameters
+Promień	Radius
+Grawitacja (pow.)	Surface gravity
+Prędkość ucieczki	Escape velocity
+Obrót gwiazdowy	Sidereal rotation
+{} (wsteczny)	{} (retrograde)
+Misje ({})	Missions ({})
+{:.2} mln km	{:.2} million km
+na żywo	live
+Katalog (Tab)	Catalogue (Tab)
+Szukaj misji, satelitów, ciał niebieskich…	Search missions, satellites, celestial bodies…
+Ustawienia	Settings
+Pomoc i skróty (F1)	Help and shortcuts (F1)
+Gwiazdy	Stars
+Planetoidy i komety	Asteroids and comets
+Satelity na orbicie (S)	Satellites in orbit (S)
+Misje trwające w tej chwili	Missions under way at this moment
+Trasa zaznaczonej misji	Selected mission's path
+Orbity (O)	Orbits (O)
+Etykiety (L)	Labels (L)
+Przybliż (kółko myszy)	Zoom in (mouse wheel)
+Oddal	Zoom out
+Cały Układ Słoneczny	Whole Solar System
+Wróć do Ziemi	Back to Earth
+Szukaj: Apollo, Voyager, Mars, ISS, Starlink, 25544…	Search: Apollo, Voyager, Mars, ISS, Starlink, 25544…
+Wpisz nazwę misji, statku, planety, księżyca albo satelity (także numer NORAD). Strzałki – wybór, Enter – przejście, Esc – zamknięcie.	Type the name of a mission, spacecraft, planet, moon or satellite (or a NORAD number). Arrows – choose, Enter – go, Esc – close.
+{:.2} AU od celu	{:.2} AU from target
+{} od celu	{} from target
+Wstecz (R)	Backwards (R)
+Pauza (spacja)	Pause (space)
+Odtwarzaj (spacja)	Play (space)
+Wolniej (,)	Slower (,)
+Szybciej (.)	Faster (.)
+Nie rozpoznano daty – użyj formatu RRRR-MM-DD GG:MM	Date not recognised – use YYYY-MM-DD HH:MM
+Kliknij, aby wpisać datę (UTC)	Click to type a date (UTC)
+Teraz, czas rzeczywisty (N)	Now, real time (N)
+Język	Language
+Wygląd	Appearance
+jasność gwiazd	star brightness
+rozdzielczość renderu 3D	3D render resolution
+skala interfejsu	interface scale
+Wysoki kontrast	High contrast
+Synchronizacja z monitorem (po ponownym uruchomieniu)	Vertical sync (after restart)
+Aktualizacje	Updates
+Sprawdzaj nowe wersje przy starcie	Check for new versions at startup
+Sprawdź teraz	Check now
+wersja {}	version {}
+O programie	About
+Atlas misji kosmicznych 3D: Układ Słoneczny w dowolnej chwili od 1957 r., odtwarzanie przebiegu misji, satelity na orbicie i wszystkie starty orbitalne.	A 3D atlas of space missions: the Solar System at any moment since 1957, mission replays, satellites in orbit and every orbital launch.
+Zgłoś błąd lub sugestię…	Report a bug or suggestion…
+Dziennik programu	Program log
+Autor	Author
+Postaw kawę	Buy me a coffee
+Źródła danych	Data sources
+Trajektorie sond: NASA/JPL Horizons (domena publiczna). Planety: VSOP87 (Bretagnon, Francou), Księżyc: ELP-2000/82 (Meeus). Planetoidy i komety: JPL SBDB. Parametry ciał, obrót i tekstury: symulator Orbiter (Martin Schweiger, licencja MIT). Gwiazdy: Yale Bright Star Catalogue. Satelity: CelesTrak (SATCAT, elementy GP), propagacja SGP4.	Spacecraft trajectories: NASA/JPL Horizons (public domain). Planets: VSOP87 (Bretagnon, Francou), Moon: ELP-2000/82 (Meeus). Asteroids and comets: JPL SBDB. Body parameters, rotation and textures: Orbiter simulator (Martin Schweiger, MIT licence). Stars: Yale Bright Star Catalogue. Satellites: CelesTrak (SATCAT, GP elements), SGP4 propagation.
+Pomoc i skróty	Help and shortcuts
+Przeciągnij myszą, aby obracać kamerę wokół celu, kółkiem przybliżaj i oddalaj. Kliknięcie zaznacza obiekt, dwuklik kieruje na niego kamerę. Oś czasu na dole przesuwa chwilę symulacji – od startu Sputnika do 2100 r.	Drag to orbit the camera around the target, use the wheel to zoom. A click selects an object, a double-click points the camera at it. The timeline at the bottom moves the simulation moment – from Sputnik to the year 2100.
+Spacja	Space
+odtwarzanie / pauza	play / pause
+wolniej / szybciej	slower / faster
+odwróć kierunek czasu	reverse time
+teraz, czas rzeczywisty	now, real time
+kamera na zaznaczony obiekt	camera to the selected object
+odznacz / zamknij	deselect / close
+etykiety / orbity / satelity	labels / orbits / satellites
+obrót kamery	rotate camera
+ta pomoc	this help
+Trasy sond z oznaczeniem „JPL Horizons” to rzeczywiste położenia. Pozostałe (np. Apollo, Wostok, Łuna) są odtworzone modelem fizycznym: wznoszenie, orbita parkingowa, łuki Keplera wyznaczone z zagadnienia Lamberta między rzeczywistymi położeniami ciał, przeloty i orbity wokół celu.	Paths marked “JPL Horizons” are real positions. The others (e.g. Apollo, Vostok, Luna) are rebuilt with a physical model: ascent, parking orbit, Kepler arcs solved from Lambert's problem between the real positions of the bodies, flybys and orbits around the target.
+Witaj w OpenSpacecraft	Welcome to OpenSpacecraft
+To trójwymiarowy atlas misji kosmicznych. Widzisz Ziemię w tej chwili – razem z tysiącami satelitów krążących po orbicie.	This is a 3D atlas of space missions. You are looking at Earth right now – with thousands of satellites in orbit around it.
+Lewy panel to katalog: misje, satelity, starty i ciała niebieskie. Dwuklik na misji odtwarza ją od startu – kamera leci za statkiem, a oś czasu pokazuje kolejne wydarzenia.	The left panel is the catalogue: missions, satellites, launches and celestial bodies. Double-click a mission to replay it from launch – the camera follows the spacecraft and the timeline shows each event.
+Czas	Time
+Na dole jest zegar symulacji: przyspieszaj (do kilku lat na sekundę), cofaj albo przeciągnij suwak do dowolnej daty od 1957 r. Satelity na orbicie zmieniają się razem z datą.	At the bottom is the simulation clock: speed it up (to several years per second), reverse it or drag the slider to any date since 1957. The satellites in orbit change with the date.
+Kliknij planetę, statek albo satelitę, by zobaczyć jego dane i odczyty na żywo: odległość, prędkość, wysokość i opóźnienie sygnału.	Click a planet, spacecraft or satellite to see its data and live readouts: distance, speed, altitude and signal delay.
+Dalej	Next
+Zaczynamy	Let's go
+Pomiń	Skip
+Wydanie nie zawiera instalatora.	The release has no installer.
+Wydanie nie zawiera pliku latest.yml z sumą kontrolną.	The release has no latest.yml checksum file.
+Brak sumy SHA-512 w latest.yml.	No SHA-512 checksum in latest.yml.
+Pobrany instalator ma niezgodną sumę kontrolną – spróbuj ponownie później.	The downloaded installer has a wrong checksum – please try again later.
+Instalacja aktualizacji została przerwana (brak zgody administratora?).	The update installation was cancelled (no administrator consent?).
+Aktualizacje tylko w systemie Windows.	Updates work on Windows only.
