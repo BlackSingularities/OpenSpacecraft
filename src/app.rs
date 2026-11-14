@@ -29,6 +29,18 @@ pub enum Focus {
     Sat(u32),
 }
 
+/// Po tym czasie od startu misja okołoziemska przechodzi z modelu startu na obiekt z katalogu.
+pub const HANDOFF_D: f64 = 15.0 / 1440.0;
+
+/// Skąd pochodzi położenie misji.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PosSource {
+    Horizons,
+    Model,
+    Sgp4,
+    Satcat,
+}
+
 /// Co jest zaznaczone (prawy panel).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Selection {
@@ -336,7 +348,7 @@ impl App {
     pub fn focus_pos(&self, f: Focus, jd: f64) -> Option<glam::DVec3> {
         match f {
             Focus::Body(b) => Some(bodies::position(b, jd)),
-            Focus::Mission(i) => self.trajs.get(i).and_then(|t| t.position(jd)),
+            Focus::Mission(i) => self.mission_position(i, jd).map(|x| x.0),
             Focus::Sat(n) => {
                 let cat = self.sats.current();
                 let o = cat.find(n)?;
@@ -378,7 +390,90 @@ impl App {
         self.set_focus(Focus::Body(b), Some(d));
     }
 
+    /// Numer NORAD statku misji okołoziemskiej (z bazy misji albo z archiwum). Taki statek to
+    /// jeden obiekt: po wejściu na orbitę jego położenie pochodzi z katalogu CelesTrak.
+    pub fn mission_norad(&self, i: usize) -> Option<u32> {
+        let m = &missions::db().missions[i];
+        if !matches!(&m.traj, missions::TrajSpec::Orbit { body, .. } if body == "earth") {
+            return None;
+        }
+        m.norad.or_else(|| {
+            let cat = crate::catalog::get();
+            cat.craft_of_mission(&m.id).and_then(|c| cat.crafts[c].norad)
+        })
+    }
+
+    /// Misja, której statkiem jest obiekt o danym numerze NORAD.
+    pub fn mission_of_norad(&self, norad: u32) -> Option<usize> {
+        let cat = crate::catalog::get();
+        let from_archive = cat.craft_by_norad(norad).and_then(|c| cat.crafts[c].m.as_deref()).and_then(missions::index_of);
+        from_archive
+            .or_else(|| missions::db().missions.iter().position(|m| m.norad == Some(norad)))
+            .filter(|&i| self.mission_norad(i) == Some(norad))
+    }
+
+    /// Położenie misji w chwili `jd` i jego źródło. Do wejścia na orbitę – model startu,
+    /// potem (misje okołoziemskie) – rzeczywisty obiekt z katalogu CelesTrak, aż do spłonięcia.
+    pub fn mission_position(&self, i: usize, jd: f64) -> Option<(glam::DVec3, PosSource)> {
+        let t = self.trajs.get(i);
+        if let Some(n) = self.mission_norad(i) {
+            let m = &missions::db().missions[i];
+            if jd > m.launch_jd + HANDOFF_D {
+                let cat = self.sats.current();
+                if let Some(o) = cat.find(n) {
+                    if !o.alive_at(jd) {
+                        return None;
+                    }
+                    match o.position(jd, &cat.gp) {
+                        // aktualne elementy orbitalne – rzeczywiste położenie
+                        Some((p, true)) => return Some((p + bodies::position(EARTH, jd), PosSource::Sgp4)),
+                        // SATCAT zna tylko ostatnią orbitę przed spłonięciem; w przeszłości lepsza jest
+                        // orbita z opisu misji (model), a gdy go brak – orbita z katalogu
+                        Some((p, false)) if t.as_ref().and_then(|t| t.position(jd)).is_none() => return Some((p + bodies::position(EARTH, jd), PosSource::Satcat)),
+                        _ => {}
+                    }
+                }
+            }
+        }
+        let t = t?;
+        let p = t.position(jd)?;
+        let src = match &t.samples {
+            Some(s) if jd >= s.range().0 && jd <= s.range().1 => PosSource::Horizons,
+            _ => PosSource::Model,
+        };
+        Some((p, src))
+    }
+
+    /// Czy misja jest już prowadzona przez obiekt z katalogu (po wejściu na orbitę).
+    pub fn mission_handed_off(&self, i: usize, jd: f64) -> bool {
+        matches!(self.mission_position(i, jd), Some((_, PosSource::Sgp4 | PosSource::Satcat)))
+    }
+
+    /// Otwiera statek z archiwum. Jeśli jest w katalogu satelitów, to ten sam obiekt – pokazujemy go
+    /// na orbicie (w chwili, gdy krążył), w przeciwnym razie kartę archiwalną.
+    pub fn open_craft(&mut self, i: usize) {
+        let c = &crate::catalog::get().crafts[i];
+        let sat = c.norad.and_then(|n| self.sats.current().find(n).map(|o| (n, o.launch_jd, o.decay_jd)));
+        match sat {
+            Some((n, launch, decay)) => {
+                let jd = self.clock.jd;
+                if jd < launch || decay.is_some_and(|d| jd >= d) {
+                    self.clock.jd = launch + 0.05;
+                    self.clock.playing = false;
+                }
+                self.select_sat(n);
+            }
+            None => self.selection = Selection::Craft(i),
+        }
+    }
+
     pub fn select_sat(&mut self, norad: u32) {
+        // statek misji to ten sam obiekt – pokazujemy misję
+        if let Some(i) = self.mission_of_norad(norad) {
+            self.select_mission(i, false);
+            self.scroll_to_selected = true;
+            return;
+        }
         self.selection = Selection::Sat(norad);
         let cat = self.sats.current();
         let d = cat.find(norad).map(|o| if o.class == sats::OrbitClass::Leo { 2.5e6 } else { 2.5e7 }).unwrap_or(2.5e6);
@@ -409,7 +504,7 @@ impl App {
     pub fn mission_view_dist(&self, i: usize) -> f64 {
         let jd = self.clock.jd;
         let Some(t) = self.trajs.get(i) else { return 1.0e7 };
-        let Some(p) = t.position(jd) else {
+        let Some(p) = self.mission_position(i, jd).map(|x| x.0) else {
             return if t.frame == EARTH { 8.0e8 } else { 4.0e11 };
         };
         let near = traj::nearest_body(p, jd);

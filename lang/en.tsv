@@ -310,3 +310,17 @@ odnośniki do artykułów	article links
 Tłumaczenia opisów na polski: OpenSpacecraft. Zdjęcia z sieci są podpisane autorem i licencją; bez znanej licencji nie są pokazywane.	Polish translations of descriptions: OpenSpacecraft. Photos from the web are credited with author and license; photos without a known license are not shown.
 {} z trasą 3D · {} w archiwum	{} with 3D trajectory · {} in archive
 Pokaż też statki z archiwum (bez trasy 3D)	Also show archive spacecraft (no 3D trajectory)
+Karta w archiwum	Archive card
+Obiekty z tego startu	Objects from this launch
+Obiekty z tego startu ({})	Objects from this launch ({})
+{} ładunków · {} członów rakiety · {} odłamków · {} wciąż na orbicie	{} payloads · {} rocket bodies · {} debris · {} still in orbit
+spłonął {}	decayed {}
+na orbicie	in orbit
+Pokaż obiekt na orbicie	Show object in orbit
+…i {} kolejnych – pokaż wszystkie w zakładce Satelity	…and {} more – show all in the Satellites tab
+CelesTrak – elementy orbity (SGP4)	CelesTrak – orbital elements (SGP4)
+CelesTrak SATCAT – orbita z katalogu (położenie na orbicie umowne)	CelesTrak SATCAT – catalog orbit (position along orbit approximate)
+spłonął w atmosferze {}	re-entered {}
+na orbicie (spłonie {})	in orbit (re-enters {})
+na orbicie – nieczynny, krąży do dziś	in orbit – inactive, still orbiting today
+Obiekt	Object

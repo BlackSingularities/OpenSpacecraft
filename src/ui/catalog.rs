@@ -135,6 +135,7 @@ fn missions_tab(app: &mut App, ui: &mut egui::Ui) {
     let sel_row = list.iter().position(|e| match (e, app.selection) {
         (Entry::Mission(i), Selection::Mission(j)) => *i == j,
         (Entry::Craft(i), Selection::Craft(j)) => *i == j,
+        (Entry::Craft(i), Selection::Sat(n)) => crate::catalog::get().crafts[*i].norad == Some(n),
         _ => false,
     });
     let row_h = 46.0;
@@ -165,9 +166,10 @@ fn missions_tab(app: &mut App, ui: &mut egui::Ui) {
                 }
                 Some(Entry::Craft(i)) => {
                     let i = *i;
-                    let sel = app.selection == Selection::Craft(i);
-                    if super::archive::craft_row(ui, &crate::catalog::get().crafts[i], sel).clicked() {
-                        app.selection = Selection::Craft(i);
+                    let c = &crate::catalog::get().crafts[i];
+                    let sel = app.selection == Selection::Craft(i) || matches!(app.selection, Selection::Sat(n) if Some(n) == c.norad);
+                    if super::archive::craft_row(ui, c, sel).clicked() {
+                        app.open_craft(i);
                     }
                 }
             }

@@ -489,8 +489,12 @@ impl Builder<'_> {
     /// Start: wznoszenie z kosmodromu na orbitę parkingową; zwraca odcinek orbity i chwilę wejścia na nią.
     fn ascent(&mut self, until: f64, peri_km: f64, apo_km: f64, inc: f64) -> (Seg, f64) {
         let launch = self.m.launch_jd;
-        let t_ins = (launch + 10.0 / 1440.0).min(until.max(launch + 2.0 / 1440.0));
-        let orbit = self.earth_orbit_over_site(t_ins, peri_km, apo_km, inc);
+        let t_ins = (launch + 9.0 / 1440.0).min(until.max(launch + 2.0 / 1440.0));
+        // Orbita przechodzi nad kosmodromem tuż po starcie, więc w czasie wznoszenia jej punkt leży
+        // stale przed rakietą (w kierunku lotu). Odniesienie w chwili wejścia na orbitę kładło ten punkt
+        // za kosmodromem – tor startu cofał się i zawracał (haczyk).
+        let t_ref = launch;
+        let orbit = self.earth_orbit_over_site(t_ref, peri_km, apo_km, inc);
         self.push(launch, t_ins, Seg::Arc { body: EARTH, a: Box::new(self.launch_site_seg()), b: Box::new(orbit.clone()), t0: launch, t1: t_ins });
         (orbit, t_ins)
     }
@@ -1017,6 +1021,27 @@ mod tests {
         let jd = time::parse("1973-12-04T02:26Z").unwrap();
         let d = (t.position(jd).unwrap() - bodies::position(bodies::JUPITER, jd)).length();
         assert!(d < 1.0e9, "model przelotu: {d}");
+    }
+
+    #[test]
+    fn ascent_moves_away_from_site() {
+        for id in ["explorer-1", "apollo-11", "sputnik-1", "voyager-1"] {
+            let (tr, m) = traj(id);
+            let site = |jd: f64| {
+                let s = m.site().unwrap();
+                Seg::Surface { body: EARTH, lat: s.lat, lon: s.lon, alt: 0.0 }.pos(jd)
+            };
+            let mut last = -1.0;
+            for k in 1..=16 {
+                let jd = m.launch_jd + k as f64 * 0.5 / 1440.0;
+                let p = tr.position(jd).unwrap() - bodies::position(EARTH, jd);
+                let s = site(jd) - bodies::position(EARTH, jd);
+                let ang = p.normalize().angle_between(s.normalize());
+                assert!(ang >= last - 1e-4, "{id}: tor startu zawraca w {k}. pół minucie ({ang} < {last})");
+                last = ang;
+            }
+            assert!(last.to_degrees() > 10.0, "{id}: po 8 min tylko {:.1}° od kosmodromu", last.to_degrees());
+        }
     }
 
     #[test]

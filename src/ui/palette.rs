@@ -156,7 +156,7 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
                 Hit::Mission(i) => app.select_mission(*i, false),
                 Hit::Body(i) => app.select_body(*i),
                 Hit::Craft(i) => {
-                    app.selection = crate::app::Selection::Craft(*i);
+                    app.open_craft(*i);
                     app.prefs.tab = crate::app::Tab::Missions;
                     app.prefs.archive = true;
                     app.search.clear();

@@ -44,6 +44,18 @@ def commons(url):
     return unquote(url.rsplit("/", 1)[-1])
 
 
+def short_author(a):
+    """Autor zdjęcia z Commons bywa całym zdaniem – zostawiamy krótką nazwę."""
+    if not a:
+        return None
+    a = re.sub(r"\s+", " ", a).strip()
+    a = re.sub(r"^(Photo|Image|Credit|Author)\s*:\s*", "", a, flags=re.I)
+    if len(a) > 60:
+        m = re.search(r"(?:from|by|courtesy of)\s+([A-Z][^.,;()]{2,50})", a)
+        a = m.group(1).strip() if m else a[:57].rsplit(" ", 1)[0] + "…"
+    return a
+
+
 def main():
     wd = load_json(RAW / "wikidata.json", {})
     ns = load_json(RAW / "nssdca.json", {})
@@ -134,7 +146,7 @@ def main():
             "short": w.get("d_en"), "short_pl": w.get("d_pl"),
             "desc": n.get("desc"),
             "img": commons(w.get("image")) if commons_meta.get(commons(w.get("image")) or "", {}).get("license") or not commons_meta else None,
-            "img_author": commons_meta.get(commons(w.get("image")) or "", {}).get("author"),
+            "img_author": short_author(commons_meta.get(commons(w.get("image")) or "", {}).get("author")),
             "img_lic": commons_meta.get(commons(w.get("image")) or "", {}).get("license"),
             "img_lic_url": commons_meta.get(commons(w.get("image")) or "", {}).get("url"),
             "wiki_en": w.get("enwiki"), "wiki_pl": w.get("plwiki"),
