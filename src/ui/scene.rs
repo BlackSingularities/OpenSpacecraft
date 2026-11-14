@@ -367,16 +367,19 @@ impl App {
             _ => None,
         };
         let mut mission_marks: Vec<(usize, DVec3)> = Vec::new();
-        for (&i, t) in &all_trajs {
+        for &i in all_trajs.keys() {
             let m = &db.missions[i];
             let show = Some(i) == sel_mission || (self.prefs.layers.missions && m.live_at(jd) && self.kind_visible(m.kind));
             if !show {
                 continue;
             }
-            if let Some(p) = t.position(jd) {
+            if let Some((p, _)) = self.mission_position(i, jd) {
                 mission_marks.push((i, p));
             }
         }
+        // misja prowadzona przez obiekt z katalogu (po wejściu na orbitę)
+        let handed = sel_mission.filter(|&i| self.mission_handed_off(i, jd));
+        let handoff_t = handed.map(|i| db.missions[i].launch_jd + crate::app::HANDOFF_D);
         if let (Some(i), true) = (sel_mission, self.prefs.layers.trajectory) {
             if let Some(t) = all_trajs.get(&i) {
                 let m = &db.missions[i];
@@ -384,13 +387,16 @@ impl App {
                 let base = bodies::position(t.frame, jd);
                 for s in &t.strips {
                     for k in 1..s.t.len() {
+                        if handoff_t.is_some_and(|h| s.t[k - 1] > h) {
+                            break; // dalej – rzeczywista orbita z katalogu
+                        }
                         let past = s.t[k] <= jd;
                         let col = if past { [kc[0], kc[1], kc[2], 0.95] } else { [kc[0], kc[1], kc[2], 0.32] };
                         push_line(&mut lines, base + s.p[k - 1], base + s.p[k], col, if past { 2.2 } else { 1.4 });
                     }
                 }
                 // bieżąca orbita wokół ciała
-                if let (Some(b), Some(p)) = (t.bound_body(jd), t.position(jd)) {
+                if let (None, Some(b), Some(p)) = (handed, t.bound_body(jd), t.position(jd)) {
                     let h = 5.0 / 86_400.0;
                     if let (Some(p1), Some(p0)) = (t.position(jd + h), t.position(jd - h)) {
                         let bp = positions[b];
@@ -438,6 +444,30 @@ impl App {
                         size,
                         color: [c[0], c[1], c[2], 0.9 * fade],
                     });
+                }
+            }
+        }
+        // misja = obiekt z katalogu: jego orbita oraz to, co zostało z tego startu (człony, odłamki)
+        if let Some(i) = sel_mission {
+            if let Some(n) = self.mission_norad(i) {
+                let kc = db.missions[i].kind.color();
+                if let (Some(_), Some(o)) = (handed, cat.find(n)) {
+                    if o.alive_at(jd) {
+                        let period = if o.period_min > 0.0 { o.period_min } else { 95.0 } / 1440.0;
+                        let pts: Vec<DVec3> = (0..=180).filter_map(|k| o.position(jd + period * k as f64 / 180.0, &cat.gp).map(|(p, _)| p)).collect();
+                        for w in pts.windows(2) {
+                            push_line(&mut lines, earth + w[0], earth + w[1], [kc[0], kc[1], kc[2], 0.8], 1.8);
+                        }
+                    }
+                }
+                if let Some(o) = cat.find(n) {
+                    let desig = &o.intl[..o.intl.len().min(8)];
+                    for r in cat.objs.iter().filter(|r| r.norad != n && r.intl.starts_with(desig) && r.alive_at(jd)) {
+                        if let Some((p, _)) = r.position(jd, &cat.gp) {
+                            let c = r.kind.color(r.active);
+                            points.push(PointInst { p: v3(earth + p - eye), size: 5.5, color: [c[0], c[1], c[2], 1.0] });
+                        }
+                    }
                 }
             }
         }
@@ -697,7 +727,13 @@ impl App {
                     self.selection = Selection::Mission(i);
                     self.scroll_to_selected = true;
                 }
-                Some(PickKind::Sat(n)) => self.selection = Selection::Sat(n),
+                Some(PickKind::Sat(n)) => match self.mission_of_norad(n) {
+                    Some(i) => {
+                        self.selection = Selection::Mission(i);
+                        self.scroll_to_selected = true;
+                    }
+                    None => self.selection = Selection::Sat(n),
+                },
                 Some(PickKind::Event(i, k)) => {
                     self.selection = Selection::Mission(i);
                     self.clock.jd = db.missions[i].events[k].jd;

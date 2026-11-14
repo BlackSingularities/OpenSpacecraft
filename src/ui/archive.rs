@@ -119,17 +119,108 @@ pub fn mission_extra(app: &mut App, ui: &mut egui::Ui, mission_id: &str) {
         ui.add_space(6.0);
         egui::CollapsingHeader::new(RichText::new(tr("Pełny opis (NASA NSSDCA)")).strong()).id_salt("nssdca").show(ui, |ui| long_text(ui, &d));
     }
-    ui.horizontal(|ui| {
-        ui.label(RichText::new(tr("COSPAR")).color(theme::paper_3()));
-        if ui.link(&c.id).on_hover_text(tr("Pokaż w archiwum")).clicked() {
-            app.selection = Selection::Craft(i);
-            app.prefs.tab = crate::app::Tab::Missions;
-            app.prefs.archive = true;
-            app.search.clear();
-            app.scroll_to_selected = true;
-        }
-    });
+    let cospar = c.id.clone();
+    launch_objects(app, ui, &cospar);
+    fact_mono(ui, "COSPAR", &c.id);
     sources(ui, &c.sources());
+}
+
+/// Wszystkie obiekty z jednego startu wg SATCAT (CelesTrak): ładunki, człony rakiety, odłamki –
+/// z informacją, czy krążą w chwili symulacji i kiedy spłonęły. Klik pokazuje obiekt na orbicie.
+pub fn launch_objects(app: &mut App, ui: &mut egui::Ui, desig: &str) {
+    let desig = desig.get(..8).unwrap_or(desig);
+    let cat = app.sats.current();
+    let mut objs: Vec<&crate::sats::SatObj> = cat.objs.iter().filter(|o| o.intl.starts_with(desig)).collect();
+    if objs.is_empty() {
+        if app.sats.busy() {
+            section(ui, "Obiekty z tego startu");
+            ui.label(RichText::new(tr("Pobieranie katalogu CelesTrak…")).small().color(theme::paper_3()));
+        }
+        return;
+    }
+    objs.sort_by(|a, b| a.intl.cmp(&b.intl));
+    let jd = app.clock.jd;
+    let now = time::now();
+    let count = |k: crate::sats::ObjType| objs.iter().filter(|o| o.kind == k).count();
+    let in_orbit_now = objs.iter().filter(|o| o.decay_jd.is_none()).count();
+    section(ui, &tf!("Obiekty z tego startu ({})", objs.len()));
+    ui.add(egui::Label::new(
+        RichText::new(tf!(
+            "{} ładunków · {} członów rakiety · {} odłamków · {} wciąż na orbicie",
+            count(crate::sats::ObjType::Payload),
+            count(crate::sats::ObjType::RocketBody),
+            count(crate::sats::ObjType::Debris),
+            in_orbit_now
+        ))
+        .small()
+        .color(theme::paper_2()),
+    ).wrap());
+    let shown = if objs.len() > 60 { 60 } else { objs.len() };
+    let mut pick: Option<(u32, f64)> = None;
+    for o in &objs[..shown] {
+        let (rect, resp) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 34.0), egui::Sense::click());
+        let sel = app.selection == Selection::Sat(o.norad);
+        let p = ui.painter();
+        p.rect_filled(rect, 8.0, if sel { theme::BRASS_DIM } else if resp.hovered() { Color32::from_white_alpha(16) } else { Color32::TRANSPARENT });
+        let col = o.kind.color(o.active);
+        let kc = Color32::from_rgb((col[0] * 255.0) as u8, (col[1] * 255.0) as u8, (col[2] * 255.0) as u8);
+        let alive = o.alive_at(jd);
+        let dot = rect.left_center() + egui::vec2(12.0, 0.0);
+        if alive {
+            p.circle_filled(dot, 4.5, kc);
+        } else {
+            p.circle_stroke(dot, 4.5, egui::Stroke::new(1.2_f32, kc));
+        }
+        let clip = rect.shrink2(egui::vec2(4.0, 0.0));
+        let pc = ui.painter_at(clip);
+        pc.text(rect.left_top() + egui::vec2(26.0, 3.0), egui::Align2::LEFT_TOP, &o.name, egui::FontId::proportional(13.0), if alive { theme::PAPER } else { theme::paper_2() });
+        let status = match o.decay_jd {
+            Some(d) if d <= now => tf!("spłonął {}", time::fmt_date(d)),
+            _ => tr("na orbicie").to_string(),
+        };
+        pc.text(rect.left_bottom() + egui::vec2(26.0, -3.0), egui::Align2::LEFT_BOTTOM, format!("{} · {} · NORAD {} · {}", o.intl, o.kind.label(), o.norad, status), egui::FontId::proportional(11.0), theme::paper_3());
+        if resp.on_hover_text(tr("Pokaż obiekt na orbicie")).clicked() {
+            pick = Some((o.norad, if alive { jd } else if o.decay_jd.is_none_or(|d| d > now) { now } else { o.launch_jd + 0.05 }));
+        }
+    }
+    if objs.len() > shown {
+        if ui.link(tf!("…i {} kolejnych – pokaż wszystkie w zakładce Satelity", objs.len() - shown)).clicked() {
+            app.sat_search = desig.to_string();
+            app.prefs.tab = crate::app::Tab::Satellites;
+            app.prefs.catalog_open = true;
+        }
+    }
+    if let Some((n, t)) = pick {
+        app.clock.jd = t;
+        app.select_sat(n);
+    }
+}
+
+/// Górna część karty satelity: zdjęcie i krótki opis z archiwum.
+pub fn sat_extra(_app: &mut App, ui: &mut egui::Ui, norad: u32) {
+    let cat = catalog::get();
+    let Some(i) = cat.craft_by_norad(norad) else { return };
+    let c = &cat.crafts[i];
+    if let Some(url) = c.photo_url() {
+        crate::photos::show(ui, &url, Some(&c.photo_credit()));
+    }
+    if let Some(s) = cat.craft_short(c) {
+        theme::para(ui, s.text);
+    }
+}
+
+/// Dolna część karty satelity: pełne dane archiwum.
+pub fn sat_archive(app: &mut App, ui: &mut egui::Ui, norad: u32) {
+    let cat = catalog::get();
+    match cat.craft_by_norad(norad) {
+        Some(i) => craft_body(app, ui, i, false),
+        None => {
+            let intl = app.sats.current().find(norad).map(|o| o.intl.clone()).unwrap_or_default();
+            if intl.len() >= 8 {
+                launch_objects(app, ui, &intl);
+            }
+        }
+    }
 }
 
 /* ── karta statku ─────────────────────────────────────────────────────── */
@@ -158,7 +249,7 @@ pub fn craft(app: &mut App, ui: &mut egui::Ui, i: usize) {
     }
     if let Some(n) = c.norad {
         if app.sats.current().find(n).is_some() && ui.button(theme::ic(theme::icon::GLOBE_HEMISPHERE_WEST, "Pokaż na orbicie")).clicked() {
-            app.select_sat(n);
+            app.open_craft(i);
         }
     }
     if let Some(url) = c.photo_url() {
@@ -168,9 +259,18 @@ pub fn craft(app: &mut App, ui: &mut egui::Ui, i: usize) {
         theme::para(ui, s.text);
     }
 
-    section(ui, "Dane");
-    fact_mono(ui, "COSPAR", &c.id);
-    if let Some(n) = c.norad {
+    craft_body(app, ui, i, true);
+}
+
+/// Fakty, start, obiekty ze startu, opis i źródła statku z archiwum.
+fn craft_body(app: &mut App, ui: &mut egui::Ui, i: usize, ids: bool) {
+    let cat = catalog::get();
+    let Some(c) = cat.crafts.get(i) else { return };
+    section(ui, if ids { "Dane" } else { "Z archiwum" });
+    if ids {
+        fact_mono(ui, "COSPAR", &c.id);
+    }
+    if let (true, Some(n)) = (ids, c.norad) {
         fact_mono(ui, "Katalog NORAD", n.to_string());
     }
     if let Some(j) = c.jd {
@@ -215,6 +315,7 @@ pub fn craft(app: &mut App, ui: &mut egui::Ui, i: usize) {
             }
         });
     }
+    launch_objects(app, ui, &c.id);
     if let Some(d) = cat.craft_desc(c) {
         section(ui, "Opis");
         long_text(ui, &d);
@@ -275,14 +376,19 @@ pub fn launch(app: &mut App, ui: &mut egui::Ui, i: usize) {
     if let Some(f) = &l.fail {
         fact(ui, "Przyczyna awarii", f);
     }
-    if let Some(d) = &l.desig {
-        let pays = cat.payloads(d);
-        if !pays.is_empty() {
-            section(ui, "Wyniesione obiekty");
-            for k in pays.into_iter().take(40) {
-                let c = &cat.crafts[k];
-                if theme::row_button(ui, theme::icon::CUBE, &format!("{}  ·  {}", c.id, cat.craft_name(c)), false).clicked() {
-                    app.selection = Selection::Craft(k);
+    if let Some(d) = l.desig.clone() {
+        let before = app.sats.current().objs.iter().any(|o| o.intl.starts_with(&d));
+        if before {
+            launch_objects(app, ui, &d);
+        } else {
+            let pays = cat.payloads(&d);
+            if !pays.is_empty() {
+                section(ui, "Wyniesione obiekty");
+                for k in pays.into_iter().take(40) {
+                    let c = &cat.crafts[k];
+                    if theme::row_button(ui, theme::icon::CUBE, &format!("{}  ·  {}", c.id, cat.craft_name(c)), false).clicked() {
+                        app.selection = Selection::Craft(k);
+                    }
                 }
             }
         }

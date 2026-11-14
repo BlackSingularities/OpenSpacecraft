@@ -101,6 +101,7 @@ pub struct Catalog {
     by_mission: HashMap<String, usize>,
     by_launch: HashMap<String, usize>,
     by_desig: HashMap<String, usize>,
+    by_norad: HashMap<u32, usize>,
 }
 
 fn load() -> Catalog {
@@ -128,7 +129,8 @@ fn load() -> Catalog {
     let by_mission = crafts.iter().enumerate().filter_map(|(i, c)| c.m.clone().map(|m| (m, i))).collect();
     let by_launch = launches.iter().enumerate().map(|(i, l)| (l.id.clone(), i)).collect();
     let by_desig = launches.iter().enumerate().filter_map(|(i, l)| l.desig.clone().map(|d| (d, i))).collect();
-    Catalog { crafts, launches, pl, by_mission, by_launch, by_desig }
+    let by_norad = crafts.iter().enumerate().filter_map(|(i, c)| c.norad.map(|n| (n, i))).collect();
+    Catalog { crafts, launches, pl, by_mission, by_launch, by_desig, by_norad }
 }
 
 pub fn get() -> &'static Catalog {
@@ -147,6 +149,11 @@ impl Catalog {
 
     pub fn launch(&self, id: &str) -> Option<usize> {
         self.by_launch.get(id).copied()
+    }
+
+    /// Statek o danym numerze NORAD (satelita z katalogu CelesTrak).
+    pub fn craft_by_norad(&self, norad: u32) -> Option<usize> {
+        self.by_norad.get(&norad).copied()
     }
 
     /// Start o oznaczeniu COSPAR „rrrr-nnn”.

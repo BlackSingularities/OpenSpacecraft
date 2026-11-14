@@ -4,7 +4,7 @@
 use eframe::egui::{self, Color32, RichText};
 
 use super::{chip, fact, fact_mono, fmt_km, fmt_mass, fmt_speed, section, theme, DETAILS_W, TIMELINE_H, TOP_BAR_H};
-use crate::app::{App, Focus, Selection};
+use crate::app::{App, Focus, PosSource, Selection};
 use crate::astro::bodies::{self, Kind as BKind, EARTH, SUN};
 use crate::astro::{time, C};
 use crate::i18n::tr;
@@ -112,15 +112,15 @@ fn mission(app: &mut App, ui: &mut egui::Ui, i: usize) {
                 ui.label(RichText::new(tr("Liczenie trajektorii…")).color(theme::paper_3()));
             });
         }
-        Some(t) => {
+        Some(_) => {
             if jd < m.launch_jd {
                 fact(ui, "Do startu", time::fmt_duration(m.launch_jd - jd));
             } else {
                 fact_mono(ui, "Czas misji (MET)", time::fmt_duration(jd - m.launch_jd));
             }
-            if let Some(p) = t.position(jd) {
+            if let Some((p, source)) = app.mission_position(i, jd) {
                 let h = 5.0 / 86_400.0;
-                let v = match (t.position(jd + h), t.position(jd - h)) {
+                let v = match (app.mission_position(i, jd + h).map(|x| x.0), app.mission_position(i, jd - h).map(|x| x.0)) {
                     (Some(a), Some(b)) => (a - b) / 10.0,
                     _ => glam::DVec3::ZERO,
                 };
@@ -140,13 +140,29 @@ fn mission(app: &mut App, ui: &mut egui::Ui, i: usize) {
                 } else {
                     fact_mono(ui, "Prędkość względem Słońca", fmt_speed(v.length()));
                 }
-                let src = match &t.samples {
-                    Some(s) if jd >= s.range().0 && jd <= s.range().1 => tr("JPL Horizons – rzeczywista trajektoria"),
-                    _ => tr("model fizyczny (łuki Keplera, przybliżenie)"),
+                let src = match source {
+                    PosSource::Horizons => tr("JPL Horizons – rzeczywista trajektoria"),
+                    PosSource::Model => tr("model fizyczny (łuki Keplera, przybliżenie)"),
+                    PosSource::Sgp4 => tr("CelesTrak – elementy orbity (SGP4)"),
+                    PosSource::Satcat => tr("CelesTrak SATCAT – orbita z katalogu (położenie na orbicie umowne)"),
                 };
                 fact(ui, "Źródło położenia", src);
             } else if jd >= m.launch_jd {
                 ui.label(RichText::new(tr("Statek nie istnieje już w tej chwili (powrót, deorbitacja albo zderzenie).")).small().color(theme::paper_3()));
+            }
+            // ten sam obiekt w katalogu: czy jeszcze krąży
+            if let Some(n) = app.mission_norad(i) {
+                let cat = app.sats.current();
+                if let Some(o) = cat.find(n) {
+                    let st = match o.decay_jd {
+                        Some(d) if d <= jd => tf!("spłonął w atmosferze {}", time::fmt_date(d)),
+                        Some(d) if d <= time::now() => tf!("na orbicie (spłonie {})", time::fmt_date(d)),
+                        _ if m.end_jd.is_some_and(|e| jd > e) => tr("na orbicie – nieczynny, krąży do dziś").to_string(),
+                        _ => tr("na orbicie").to_string(),
+                    };
+                    fact(ui, "Obiekt", st);
+                    fact_mono(ui, "Orbita", format!("{:.0} × {:.0} km · {:.1}° · {:.1} min", o.peri_km, o.apo_km, o.inc_deg, o.period_min));
+                }
             }
         }
     }
@@ -248,6 +264,7 @@ fn satellite(app: &mut App, ui: &mut egui::Ui, norad: u32) {
             app.clock.jd = o.launch_jd + 0.5;
         }
     });
+    super::archive::sat_extra(app, ui, norad);
     section(ui, &tf!("Stan w chwili {}", time::fmt_datetime(jd)));
     match o.position(jd, &cat.gp).filter(|_| o.alive_at(jd) || o.launch_jd == 0.0) {
         Some((p, exact)) => {
@@ -286,13 +303,8 @@ fn satellite(app: &mut App, ui: &mut egui::Ui, norad: u32) {
         fact_mono(ui, "Nachylenie", tf!("{:.2}°", o.inc_deg));
         fact_mono(ui, "Perygeum / apogeum", tf!("{} / {}", fmt_km(o.peri_km), fmt_km(o.apo_km)));
     }
-    // misja z bazy o tym numerze
-    if let Some((mi, m)) = missions::db().missions.iter().enumerate().find(|(_, m)| m.norad == Some(norad)) {
-        section(ui, "W bazie misji");
-        if theme::row_button(ui, m.kind.icon(), &m.name, false).clicked() {
-            app.select_mission(mi, false);
-        }
-    }
+    // dane z archiwum (ten sam obiekt): fakty, start, pozostałości startu, opis, źródła
+    super::archive::sat_archive(app, ui, norad);
 }
 
 fn body(app: &mut App, ui: &mut egui::Ui, id: usize) {
