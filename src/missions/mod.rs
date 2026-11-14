@@ -14,6 +14,16 @@ pub struct Event {
     pub t: String,
     pub pl: String,
     pub en: String,
+    /// Rodzaj wydarzenia (ikona): launch, stage, sep, dock, undock, burn, orbit, land, liftoff,
+    /// eva, entry, splash, flyby, science, end.
+    #[serde(default)]
+    pub k: Option<String>,
+    /// Części, które w tej chwili odłączają się od statku.
+    #[serde(default)]
+    pub sep: Vec<String>,
+    /// Części, które w tej chwili łączą się (dokują) ze statkiem.
+    #[serde(default)]
+    pub dock: Vec<String>,
     #[serde(skip)]
     pub jd: f64,
 }
@@ -22,6 +32,82 @@ impl Event {
     pub fn text(&self) -> &str {
         if crate::i18n::current() == "pl" { &self.pl } else { &self.en }
     }
+
+    pub fn icon(&self) -> &'static str {
+        use crate::ui::theme::icon;
+        match self.k.as_deref().unwrap_or("") {
+            "launch" => icon::ROCKET_LAUNCH,
+            "stage" => icon::STACK,
+            "sep" => icon::ARROWS_SPLIT,
+            "dock" => icon::PLUGS_CONNECTED,
+            "undock" => icon::PLUGS,
+            "burn" => icon::FIRE,
+            "orbit" => icon::CIRCLE_DASHED,
+            "land" => icon::ARROW_LINE_DOWN,
+            "liftoff" => icon::ARROW_LINE_UP,
+            "eva" => icon::PERSON_SIMPLE_WALK,
+            "entry" => icon::FLAME,
+            "splash" => icon::PARACHUTE,
+            "flyby" => icon::PATH,
+            "science" => icon::FLASK,
+            "end" => icon::FLAG_CHECKERED,
+            _ => icon::DOT_OUTLINE,
+        }
+    }
+}
+
+/// Gdzie jest część po odłączeniu (znacznik w widoku 3D).
+#[derive(Deserialize, Clone, Debug)]
+pub struct PartPos {
+    /// `surface` – na powierzchni (domyślnie miejsce lądowania misji), `orbit` – na orbicie
+    /// (domyślnie orbita misji wokół celu).
+    pub at: String,
+    pub body: Option<String>,
+    pub lat: Option<f64>,
+    pub lon: Option<f64>,
+    pub peri_km: Option<f64>,
+    pub apo_km: Option<f64>,
+    pub inc: Option<f64>,
+}
+
+/// Moduł, człon albo inna część zestawu startowego.
+#[derive(Deserialize, Clone, Debug)]
+pub struct Part {
+    pub id: String,
+    pub pl: String,
+    pub en: String,
+    /// Co się z nią stało po ostatnim odłączeniu.
+    pub fate_pl: Option<String>,
+    pub fate_en: Option<String>,
+    pub pos: Option<PartPos>,
+    /// Początek znacznika w 3D (np. sonda dociera na powierzchnię dopiero po locie).
+    pub from: Option<String>,
+    /// Koniec znacznika w 3D (np. orbiter zakończył pracę).
+    pub until: Option<String>,
+    /// Dołącza dopiero później (np. moduł dowieziony na stację).
+    #[serde(default)]
+    pub later: bool,
+}
+
+impl Part {
+    pub fn name(&self) -> &str {
+        if crate::i18n::current() == "pl" { &self.pl } else { &self.en }
+    }
+
+    pub fn fate(&self) -> Option<&str> {
+        if crate::i18n::current() == "pl" { self.fate_pl.as_deref() } else { self.fate_en.as_deref().or(self.fate_pl.as_deref()) }
+    }
+}
+
+/// Stan części w danej chwili.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PartState {
+    /// Jeszcze jej nie ma w zestawie.
+    NotYet,
+    /// W zestawie (połączona ze statkiem).
+    Attached,
+    /// Odłączona przy wydarzeniu `event`; `last` – już nie wróci do zestawu.
+    Separated { event: usize, last: bool },
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -218,6 +304,13 @@ pub struct Mission {
     pub ach_en: Vec<String>,
     #[serde(default)]
     pub events: Vec<Event>,
+    /// Części zestawu (moduły, człony rakiety) – scenariusz łączenia i odłączania.
+    #[serde(default)]
+    pub parts: Vec<Part>,
+    /// Co przedstawia zdjęcie z archiwum i poprawiony podpis autora.
+    pub photo_pl: Option<String>,
+    pub photo_en: Option<String>,
+    pub photo_author: Option<String>,
     pub traj: TrajSpec,
     #[serde(skip)]
     pub launch_jd: f64,
@@ -253,6 +346,63 @@ impl Mission {
 
     pub fn vehicle(&self) -> Option<&'static Vehicle> {
         self.vehicle.as_deref().and_then(vehicle)
+    }
+
+    /// Misja z ludźmi na pokładzie (także stacje i loty księżycowe z załogą).
+    pub fn crewed(&self) -> bool {
+        self.kind == Kind::Crewed || self.kind == Kind::Station || !self.crew.is_empty()
+    }
+
+    pub fn photo_caption(&self) -> Option<&str> {
+        if crate::i18n::current() == "pl" { self.photo_pl.as_deref() } else { self.photo_en.as_deref().or(self.photo_pl.as_deref()) }
+    }
+
+    /// Stan części `p` w chwili `jd` (wg wydarzeń `sep`/`dock`).
+    pub fn part_state(&self, p: usize, jd: f64) -> PartState {
+        let id = &self.parts[p].id;
+        let mut st = if self.parts[p].later { PartState::NotYet } else { PartState::Attached };
+        for (k, e) in self.events.iter().enumerate() {
+            if e.jd > jd {
+                break;
+            }
+            if e.sep.contains(id) {
+                st = PartState::Separated { event: k, last: true };
+            }
+            if e.dock.contains(id) {
+                st = PartState::Attached;
+            }
+        }
+        if let PartState::Separated { event, .. } = st {
+            let again = self.events[event + 1..].iter().any(|e| e.dock.contains(id));
+            st = PartState::Separated { event, last: !again };
+        }
+        st
+    }
+
+    /// Okresy, w których część leci osobno: (od, do).
+    pub fn part_free_intervals(&self, p: usize) -> Vec<(f64, f64)> {
+        let id = &self.parts[p].id;
+        let mut out = Vec::new();
+        let mut from: Option<f64> = None;
+        for e in &self.events {
+            if e.sep.contains(id) && from.is_none() {
+                from = Some(e.jd);
+            }
+            if e.dock.contains(id) {
+                if let Some(f) = from.take() {
+                    out.push((f, e.jd));
+                }
+            }
+        }
+        if let Some(f) = from {
+            out.push((f, f64::INFINITY));
+        }
+        out
+    }
+
+    /// Ostatnie wydarzenie przed chwilą `jd` (bieżąca faza lotu).
+    pub fn phase_at(&self, jd: f64) -> Option<&Event> {
+        self.events.iter().rev().find(|e| e.jd <= jd)
     }
 
     pub fn site(&self) -> Option<&'static Site> {
@@ -393,6 +543,20 @@ mod tests {
             assert!(time::parse(&m.launch).is_some(), "{}: start", m.id);
             for e in &m.events {
                 assert!(time::parse(&e.t).is_some(), "{}: {}", m.id, e.t);
+                for p in e.sep.iter().chain(e.dock.iter()) {
+                    assert!(m.parts.iter().any(|x| &x.id == p), "{}: brak części {p}", m.id);
+                }
+            }
+            for p in &m.parts {
+                if let Some(u) = &p.from {
+                    assert!(time::parse(u).is_some(), "{}: {}", m.id, u);
+                }
+                if let Some(u) = &p.until {
+                    assert!(time::parse(u).is_some(), "{}: {}", m.id, u);
+                }
+                if let Some(b) = p.pos.as_ref().and_then(|x| x.body.as_ref()) {
+                    assert!(crate::astro::bodies::find(b).is_some(), "{}: ciało {b}", m.id);
+                }
             }
             if let Some(v) = &m.vehicle {
                 assert!(vehicle(v).is_some(), "{}: brak rakiety {v}", m.id);

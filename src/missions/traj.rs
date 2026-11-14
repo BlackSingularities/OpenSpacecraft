@@ -340,6 +340,23 @@ pub struct Trajectory {
     /// Model kończy się powierzchnią albo orbitą od tej chwili (po próbkach Horizons).
     model_final_from: Option<f64>,
     pub strips: Vec<Strip>,
+    /// Części lecące osobno (np. moduł dowodzenia na orbicie, gdy lądownik jest na powierzchni).
+    pub companions: Vec<Companion>,
+}
+
+/// Część misji z własnym położeniem w przedziale [t0, t1].
+pub struct Companion {
+    /// Indeks w `Mission::parts`.
+    pub part: usize,
+    pub t0: f64,
+    pub t1: f64,
+    pub seg: Seg,
+}
+
+impl Companion {
+    pub fn position(&self, jd: f64) -> Option<DVec3> {
+        (jd >= self.t0 && jd < self.t1).then(|| self.seg.pos(jd))
+    }
 }
 
 impl Trajectory {
@@ -436,6 +453,10 @@ struct Builder<'a> {
     overrides: Vec<Piece>,
     /// Od tej chwili model kończy się orbitą albo powierzchnią celu.
     model_final: Option<f64>,
+    /// Orbita wokół celu (księżycowa albo końcowa) – dla części, które na niej zostają.
+    target_orbit: Option<Seg>,
+    /// Miejsce lądowania: (ciało, szerokość, długość).
+    landing: Option<(BodyId, f64, f64)>,
 }
 
 impl Builder<'_> {
@@ -574,6 +595,7 @@ impl Builder<'_> {
             let target = astro::moon::geocentric(tl) + bodies::orientation(MOON, tl) * geo_dir(la, lo) * rm;
             let arc = self.lambert_geo(r_tli, tli, target, tl);
             self.push(tli, tl, arc);
+            self.landing = Some((MOON, la, lo));
             self.push(tl, if end > tl + 1e-3 { end } else { f64::INFINITY }, Seg::Surface { body: MOON, lat: la, lon: lo, alt: 0.0 });
             return;
         }
@@ -609,8 +631,10 @@ impl Builder<'_> {
         let lunar_orbit = Seg::Conic { center: MOON, t0: t_loi, r0: r_rel, v0: h.cross(r_rel).normalize() * vp };
         let orbit_end = landing.map(|l| l.0 - 12.0 / 1440.0).or(tei).unwrap_or(end);
         self.push(t_loi, orbit_end, lunar_orbit.clone());
+        self.target_orbit = Some(lunar_orbit.clone());
         let mut last = lunar_orbit.clone();
         if let Some((tl, la, lo)) = landing {
+            self.landing = Some((MOON, la, lo));
             let surf = Seg::Surface { body: MOON, lat: la, lon: lo, alt: 0.0 };
             let d0 = tl - 12.0 / 1440.0;
             self.push(d0, tl, Seg::Arc { body: MOON, a: Box::new(lunar_orbit.clone()), b: Box::new(surf.clone()), t0: d0, t1: tl });
@@ -766,12 +790,14 @@ impl Builder<'_> {
                         let ra = radius + o.apo_km.max(o.peri_km) * 1000.0;
                         let vp = (mu * (2.0 / rp - 2.0 / (rp + ra))).sqrt();
                         let orbit = Seg::Conic { center: b, t0: t, r0: *r0, v0: v0.normalize() * vp };
+                        self.target_orbit = Some(orbit.clone());
                         let s_from = fin.and_then(|f| f.surface_from.as_deref()).and_then(time::parse);
                         surf_from = s_from;
                         let orbit_end = s_from.map(|s| s - 15.0 / 1440.0).unwrap_or(end.max(t));
                         self.push(t, orbit_end, orbit.clone());
                         if let (Some(sf), Some(s)) = (s_from, fin_surface) {
                             let sb = bodies::find(&s.body).unwrap_or(b);
+                            self.landing = Some((sb, s.lat, s.lon));
                             let surf = Seg::Surface { body: sb, lat: s.lat, lon: s.lon, alt: 0.0 };
                             self.push(orbit_end, sf, Seg::Blend { a: Box::new(orbit), b: Box::new(surf.clone()), t0: orbit_end, t1: sf });
                             self.push(sf, f64::INFINITY, surf);
@@ -781,6 +807,7 @@ impl Builder<'_> {
                     if surf_from.is_none() && fin_orbit.is_none() {
                         if let Some(s) = fin_surface {
                             let sb = bodies::find(&s.body).unwrap_or(b);
+                            self.landing = Some((sb, s.lat, s.lon));
                             let surf = Seg::Surface { body: sb, lat: s.lat, lon: s.lon, alt: 0.0 };
                             let d0 = t - 10.0 / 1440.0;
                             self.over(d0, t, Seg::Blend { a: Box::new(hyp.clone()), b: Box::new(surf.clone()), t0: d0, t1: t });
@@ -834,8 +861,9 @@ impl Builder<'_> {
 
 /// Buduje trajektorię misji (model + próbki Horizons, jeśli są).
 pub fn build(m: &Mission) -> Trajectory {
-    let mut b = Builder { m, pieces: Vec::new(), overrides: Vec::new(), model_final: None };
+    let mut b = Builder { m, pieces: Vec::new(), overrides: Vec::new(), model_final: None, target_orbit: None, landing: None };
     b.run();
+    let companions = companions(m, b.target_orbit.as_ref(), b.landing);
     let Builder { mut pieces, overrides, model_final, .. } = b;
     pieces.sort_by(|a, b| a.t0.total_cmp(&b.t0));
     let samples = m.horizons.as_ref().and_then(|_| samples_for(&m.id));
@@ -854,9 +882,55 @@ pub fn build(m: &Mission) -> Trajectory {
         Some(e) if !persists || fin_orbit => Some(e),
         _ => None,
     };
-    let mut t = Trajectory { pieces, overrides, samples, start: m.launch_jd, gone_after, frame, model_final_from: model_final, strips: Vec::new() };
+    let mut t = Trajectory { pieces, overrides, samples, start: m.launch_jd, gone_after, frame, model_final_from: model_final, strips: Vec::new(), companions };
     t.strips = make_strips(&t, m);
     t
+}
+
+/// Orbita wokół ciała w jego płaszczyźnie równikowej nachylonej o `inc` (węzeł umowny).
+fn orbit_around(body: BodyId, t0: f64, peri_km: f64, apo_km: f64, inc_deg: f64) -> Seg {
+    let r = bodies::get(body).radius;
+    let rp = r + peri_km * 1000.0;
+    let ra = r + apo_km.max(peri_km) * 1000.0;
+    let mu = gm(body);
+    let vp = (mu * (2.0 / rp - 2.0 / (rp + ra))).sqrt();
+    let rot = bodies::orientation(body, t0);
+    let i = inc_deg.to_radians();
+    let r0 = rot * DVec3::X * rp;
+    let v0 = rot * DVec3::new(0.0, i.cos(), i.sin()) * vp;
+    Seg::Conic { center: body, t0, r0, v0 }
+}
+
+/// Znaczniki części lecących osobno, z opisu `parts[].pos` i wydarzeń `sep`/`dock`.
+fn companions(m: &Mission, target_orbit: Option<&Seg>, landing: Option<(BodyId, f64, f64)>) -> Vec<Companion> {
+    let mut out = Vec::new();
+    for (k, part) in m.parts.iter().enumerate() {
+        let Some(pos) = &part.pos else { continue };
+        let until = part.until.as_deref().and_then(time::parse).unwrap_or(f64::INFINITY);
+        let from = part.from.as_deref().and_then(time::parse).unwrap_or(f64::NEG_INFINITY);
+        for (t0, t1) in m.part_free_intervals(k) {
+            let (t0, t1) = (t0.max(from), t1.min(until));
+            if t1 <= t0 {
+                continue;
+            }
+            let body = pos.body.as_deref().and_then(bodies::find);
+            let seg = match pos.at.as_str() {
+                "surface" => match (body, pos.lat, pos.lon, landing) {
+                    (b, Some(la), Some(lo), l) => Seg::Surface { body: b.or(l.map(|x| x.0)).unwrap_or(MOON), lat: la, lon: lo, alt: 0.0 },
+                    (_, _, _, Some((b, la, lo))) => Seg::Surface { body: b, lat: la, lon: lo, alt: 0.0 },
+                    _ => continue,
+                },
+                "orbit" => match (pos.peri_km, body, target_orbit) {
+                    (Some(pe), Some(b), _) => orbit_around(b, t0, pe, pos.apo_km.unwrap_or(pe), pos.inc.unwrap_or(0.0)),
+                    (_, _, Some(o)) => o.clone(),
+                    _ => continue,
+                },
+                _ => continue,
+            };
+            out.push(Companion { part: k, t0, t1, seg });
+        }
+    }
+    out
 }
 
 impl Builder<'_> {

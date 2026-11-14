@@ -19,6 +19,8 @@ pub enum PickKind {
     Mission(usize),
     Sat(u32),
     Event(usize, usize),
+    /// Część misji lecąca osobno: (misja, część).
+    Part(usize, usize),
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -127,9 +129,23 @@ impl App {
                 Selection::Craft(_) | Selection::Launch(_) | Selection::None => {}
             }
         }
+        let (missions_key, date_key) = ctx.input(|i| (i.key_pressed(egui::Key::M), i.key_pressed(egui::Key::D)));
+        if missions_key {
+            self.missions_open = !self.missions_open;
+        }
+        if date_key {
+            self.menu = match self.menu {
+                Some((crate::app::Menu::Date, _)) => None,
+                _ => Some((crate::app::Menu::Date, egui::Rect::NOTHING)),
+            };
+        }
         if esc {
             if self.palette.is_some() {
                 self.palette = None;
+            } else if self.menu.is_some() {
+                self.menu = None;
+            } else if self.missions_open {
+                self.missions_open = false;
             } else {
                 self.selection = Selection::None;
             }
@@ -416,6 +432,31 @@ impl App {
             }
         }
 
+        // części zaznaczonej misji lecące osobno (moduł na orbicie, lądownik na powierzchni)
+        let mut part_marks: Vec<(usize, usize, DVec3)> = Vec::new();
+        if let Some(i) = sel_mission {
+            if let Some(t) = all_trajs.get(&i) {
+                let kc = db.missions[i].kind.color();
+                for c in &t.companions {
+                    let Some(p) = c.position(jd) else { continue };
+                    part_marks.push((i, c.part, p));
+                    if let (true, crate::missions::traj::Seg::Conic { center, .. }) = (self.prefs.layers.trajectory, &c.seg) {
+                        let h = 5.0 / 86_400.0;
+                        let bp = positions[*center];
+                        let r = p - bp;
+                        let v = (c.seg.pos(jd + h) - c.seg.pos(jd - h)) / 10.0 - bodies::velocity(*center, jd);
+                        let mu = bodies::get(*center).gm;
+                        if v.length_squared() / 2.0 - mu / r.length() < 0.0 {
+                            let pts = closed_orbit(r, v, mu, 160);
+                            for w in pts.windows(2) {
+                                push_line(&mut lines, bp + w[0], bp + w[1], [kc[0] * 0.6 + 0.4, kc[1] * 0.6 + 0.4, kc[2] * 0.6 + 0.4, 0.45], 1.2);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // ── satelity ──
         let earth = positions[EARTH];
         let earth_d = (earth - eye).length();
@@ -485,11 +526,42 @@ impl App {
                 }
             }
         }
+        // model 3D zaznaczonego statku (NASA 3D Resources), gdy kamera jest blisko
+        let mut crafts: Vec<crate::render::CraftDraw> = Vec::new();
+        let mut model_close: Option<usize> = None;
+        if let Some(i) = sel_mission {
+            if let (Some(mr), Some(&(_, p))) = (crate::models::for_mission(&db.missions[i].id, jd), mission_marks.iter().find(|(k, _)| *k == i)) {
+                let d = (p - eye).length();
+                let size = mr.size_m as f64;
+                if d < size * 400.0 {
+                    // oś Z modelu prostopadle do ekliptyki, przód (−Y) wzdłuż prędkości
+                    let h = 20.0 / 86_400.0;
+                    let vel = match (self.mission_position(i, jd + h), self.mission_position(i, jd - h)) {
+                        (Some((a, _)), Some((b, _))) => a - b,
+                        _ => DVec3::X,
+                    };
+                    let fwd = Vec3::from(v3(vel.normalize_or(DVec3::X)));
+                    let side = fwd.cross(Vec3::Z).try_normalize().unwrap_or(Vec3::X);
+                    let up = side.cross(fwd).normalize_or(Vec3::Z);
+                    let rot = Mat3::from_cols(side, -fwd, up);
+                    crafts.push(crate::render::CraftDraw { key: mr.url(), center: Vec3::from(v3(p - eye)), rot, scale: mr.size_m });
+                    if d < size * 60.0 && crate::models::get(&mr.url(), &ctx).is_some() {
+                        model_close = Some(i);
+                    }
+                }
+            }
+        }
         // znaczniki misji (punkty w scenie – przesłaniane przez planety)
         for &(i, p) in &mission_marks {
+            if model_close == Some(i) {
+                continue;
+            }
             let c = db.missions[i].kind.color();
             let size = if Some(i) == sel_mission { 9.0 } else { 6.0 };
             points.push(PointInst { p: v3(p - eye), size, color: [c[0], c[1], c[2], 1.0] });
+        }
+        for &(_, _, p) in &part_marks {
+            points.push(PointInst { p: v3(p - eye), size: 6.5, color: [0.92, 0.94, 1.0, 1.0] });
         }
         // poświata Słońca
         let sun_d = sun_rel.length();
@@ -524,6 +596,7 @@ impl App {
                 lines: &lines,
                 points: &points,
                 glows: &glows,
+                crafts: &crafts,
             };
             let blit = r.render(&f, [rect.width(), rect.height()], ppp, self.settings.render_scale.clamp(0.5, 2.0), &glass);
             ui.painter().add(egui_wgpu::Callback::new_paint_callback(rect, blit));
@@ -566,6 +639,15 @@ impl App {
             if sel {
                 painter.circle_stroke(s, 10.0, egui::Stroke::new(1.5_f32, c32(m.kind.color(), 1.0)));
             }
+        }
+        // części misji lecące osobno
+        for &(i, k, p) in &part_marks {
+            let Some((s, _)) = to_screen(p) else { continue };
+            if occluded(eye, p, &spheres) {
+                continue;
+            }
+            self.picks.push(Pick { kind: PickKind::Part(i, k), at: s, r: 8.0 });
+            label(&painter, &mut taken, s, db.missions[i].parts[k].name(), theme::paper_2(), true);
         }
         // wydarzenia zaznaczonej misji na trasie
         if let Some(i) = sel_mission {
@@ -739,6 +821,9 @@ impl App {
                     self.clock.jd = db.missions[i].events[k].jd;
                     self.clock.playing = false;
                 }
+                Some(PickKind::Part(i, _)) => {
+                    self.selection = Selection::Mission(i);
+                }
                 None => {}
             }
         }
@@ -801,6 +886,11 @@ impl App {
             PickKind::Event(i, e) => {
                 let ev = &db.missions[i].events[e];
                 format!("{} · {}", time::fmt_datetime(ev.jd), ev.text())
+            }
+            PickKind::Part(i, k) => {
+                let m = &db.missions[i];
+                let p = &m.parts[k];
+                format!("{} · {}", p.name(), m.name)
             }
         }
     }

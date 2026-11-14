@@ -94,6 +94,15 @@ pub struct BodyDraw {
     pub rings: bool,
 }
 
+/// Statek (model 3D) do narysowania: adres modelu, środek względem kamery, orientacja, rozmiar [m].
+#[derive(Clone, Debug)]
+pub struct CraftDraw {
+    pub key: String,
+    pub center: Vec3,
+    pub rot: Mat3,
+    pub scale: f32,
+}
+
 pub struct Frame<'a> {
     pub view_proj: Mat4,
     pub sky_proj: Mat4,
@@ -105,6 +114,7 @@ pub struct Frame<'a> {
     pub lines: &'a [LineInst],
     pub points: &'a [PointInst],
     pub glows: &'a [PointInst],
+    pub crafts: &'a [CraftDraw],
 }
 
 struct Targets {
@@ -150,6 +160,9 @@ pub struct Renderer {
     p_lines: wgpu::RenderPipeline,
     p_points: wgpu::RenderPipeline,
     p_glow: wgpu::RenderPipeline,
+    p_craft: wgpu::RenderPipeline,
+    /// Siatki statków przesłane na kartę: adres modelu → (wierzchołki, indeksy, liczba indeksów).
+    meshes: HashMap<String, (wgpu::Buffer, wgpu::Buffer, u32)>,
     p_blit: wgpu::RenderPipeline,
     blit_layout: wgpu::BindGroupLayout,
     clamp_sampler: wgpu::Sampler,
@@ -316,6 +329,7 @@ impl Renderer {
         let attrs_mesh = wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x2];
         let attrs_line = wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x4, 3 => Float32];
         let attrs_point = wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32, 2 => Float32x4];
+        let attrs_craft = wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3];
         #[allow(clippy::too_many_arguments)]
         let pipe = |label: &str,
                     layout: &wgpu::PipelineLayout,
@@ -344,6 +358,7 @@ impl Renderer {
         let a_mesh: &'static [wgpu::VertexAttribute] = Box::leak(Box::new(attrs_mesh));
         let a_line: &'static [wgpu::VertexAttribute] = Box::leak(Box::new(attrs_line));
         let a_point: &'static [wgpu::VertexAttribute] = Box::leak(Box::new(attrs_point));
+        let a_craft: &'static [wgpu::VertexAttribute] = Box::leak(Box::new(attrs_craft));
         let p_stars = pipe("gwiazdy", &l_glob, "vs_star", "fs_star", inst(28, a_star), Some(additive), None, depth(false, wgpu::CompareFunction::Always));
         let p_body = pipe("ciała", &l_body, "vs_body", "fs_body", vert(20, a_mesh), None, Some(wgpu::Face::Back), depth(true, wgpu::CompareFunction::GreaterEqual));
         let p_atmo = pipe("atmosfera", &l_body, "vs_atmo", "fs_atmo", vert(20, a_mesh), Some(additive), Some(wgpu::Face::Back), depth(false, wgpu::CompareFunction::GreaterEqual));
@@ -351,6 +366,7 @@ impl Renderer {
         let p_lines = pipe("linie", &l_glob, "vs_line", "fs_line", inst(44, a_line), Some(premul), None, depth(false, wgpu::CompareFunction::GreaterEqual));
         let p_points = pipe("punkty", &l_glob, "vs_point", "fs_point", inst(32, a_point), Some(premul), None, depth(false, wgpu::CompareFunction::GreaterEqual));
         let p_glow = pipe("poświata", &l_glob, "vs_point", "fs_glow", inst(32, a_point), Some(additive), None, depth(false, wgpu::CompareFunction::GreaterEqual));
+        let p_craft = pipe("statki", &l_ring, "vs_craft", "fs_craft", vert(24, a_craft), None, None, depth(true, wgpu::CompareFunction::GreaterEqual));
         let target = rs.target_format;
         let gamma = !target.is_srgb();
         let p_blit = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -413,6 +429,8 @@ impl Renderer {
             p_lines,
             p_points,
             p_glow,
+            p_craft,
+            meshes: HashMap::new(),
             p_blit,
             blit_layout,
             clamp_sampler,
@@ -593,6 +611,32 @@ impl Renderer {
             self.queue.write_buffer(&self.body_buf, slot as u64 * BODY_STRIDE, bytemuck::bytes_of(&u));
             slot
         });
+        // statki: siatki przesłane przy pierwszym użyciu, uniformy za ciałami i pierścieniem
+        let mut craft_slots: Vec<(usize, String)> = Vec::new();
+        for c in f.crafts {
+            if !self.meshes.contains_key(&c.key) {
+                if let Some(m) = crate::models::get(&c.key, &self.ctx) {
+                    let vb = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("statek"), contents: bytemuck::cast_slice(&m.verts), usage: wgpu::BufferUsages::VERTEX });
+                    let ib = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("statek-i"), contents: bytemuck::cast_slice(&m.idx), usage: wgpu::BufferUsages::INDEX });
+                    self.meshes.insert(c.key.clone(), (vb, ib, m.idx.len() as u32));
+                }
+            }
+            let slot = n_bodies + 1 + craft_slots.len();
+            if !self.meshes.contains_key(&c.key) || slot >= MAX_BODIES as usize {
+                continue;
+            }
+            let model = Mat4::from_translation(c.center) * Mat4::from_mat3(c.rot) * Mat4::from_scale(Vec3::splat(c.scale));
+            let u = BodyUniform {
+                model: model.to_cols_array_2d(),
+                rot: Mat4::from_mat3(c.rot).to_cols_array_2d(),
+                color: [1.0; 4],
+                atmo: [0.0; 4],
+                center: [c.center.x, c.center.y, c.center.z, c.scale],
+                extra: [0.0; 4],
+            };
+            self.queue.write_buffer(&self.body_buf, slot as u64 * BODY_STRIDE, bytemuck::bytes_of(&u));
+            craft_slots.push((slot, c.key.clone()));
+        }
         Self::upload_instances(&self.device, &self.queue, &mut self.lines_buf, f.lines);
         Self::upload_instances(&self.device, &self.queue, &mut self.points_buf, f.points);
         Self::upload_instances(&self.device, &self.queue, &mut self.glows_buf, f.glows);
@@ -635,6 +679,17 @@ impl Renderer {
                 pass.set_vertex_buffer(0, self.ring.0.slice(..));
                 pass.set_index_buffer(self.ring.1.slice(..), wgpu::IndexFormat::Uint32);
                 pass.draw_indexed(0..self.ring.2, 0, 0..1);
+            }
+            if !craft_slots.is_empty() {
+                pass.set_pipeline(&self.p_craft);
+                for (slot, key) in &craft_slots {
+                    if let Some((vb, ib, n)) = self.meshes.get(key) {
+                        pass.set_bind_group(1, &self.body_bind, &[(*slot as u64 * BODY_STRIDE) as u32]);
+                        pass.set_vertex_buffer(0, vb.slice(..));
+                        pass.set_index_buffer(ib.slice(..), wgpu::IndexFormat::Uint32);
+                        pass.draw_indexed(0..*n, 0, 0..1);
+                    }
+                }
             }
             pass.set_pipeline(&self.p_atmo);
             pass.set_vertex_buffer(0, self.sphere.0.slice(..));

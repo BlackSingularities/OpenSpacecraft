@@ -283,7 +283,8 @@ impl Craft {
 
     pub fn photo_credit(&self) -> crate::photos::Credit<'_> {
         crate::photos::Credit {
-            author: self.img_author.as_deref(),
+            author: self.img_author.as_deref().and_then(crate::photos::clean_author),
+            caption: None,
             source: "Wikimedia Commons",
             page: self.img.as_deref().map(|i| format!("https://commons.wikimedia.org/wiki/File:{}", encode(i))),
             license: self.img_lic.as_deref(),
@@ -324,7 +325,8 @@ impl Launch {
 
     pub fn photo_credit(&self) -> crate::photos::Credit<'_> {
         crate::photos::Credit {
-            author: self.img_credit.as_deref(),
+            author: self.img_credit.as_deref().and_then(crate::photos::clean_author),
+            caption: None,
             source: "Launch Library 2",
             page: Some(self.source_url()),
             license: self.img_lic.as_deref(),

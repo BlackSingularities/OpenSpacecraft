@@ -99,8 +99,53 @@ fn mission(app: &mut App, ui: &mut egui::Ui, i: usize) {
             app.clock.jd = m.end_jd.unwrap_or(jd) - 1.0 / 24.0;
         }
     });
+    // model 3D statku (NASA 3D Resources)
+    if crate::models::has_model(&m.id) {
+        ui.horizontal_wrapped(|ui| {
+            match crate::models::for_mission(&m.id, jd) {
+                Some(mr) if m.live_at(jd) => {
+                    let busy = crate::models::loading(&mr.url());
+                    if ui.button(theme::ic(theme::icon::CUBE, "Model 3D z bliska")).on_hover_text(tr("Kamera zbliża się do statku – model pobiera się przy pierwszym użyciu")).clicked() {
+                        let _ = crate::models::get(&mr.url(), ui.ctx());
+                        app.set_focus(Focus::Mission(i), Some(mr.size_m as f64 * 2.6));
+                    }
+                    if busy {
+                        ui.add(egui::Spinner::new().size(13.0));
+                    }
+                    ui.label(RichText::new(tr("Model:")).small().color(theme::paper_3()));
+                    ui.hyperlink_to(RichText::new("NASA 3D Resources").small(), mr.page());
+                }
+                _ => {
+                    ui.label(RichText::new(format!("{} {}", theme::icon::CUBE, tr("Model 3D dostępny w czasie lotu statku"))).small().color(theme::paper_3()));
+                }
+            }
+        });
+    }
     super::archive::mission_photo(ui, &m.id);
     theme::para(ui, m.summary());
+
+    // bieżąca faza lotu i skład zestawu
+    if jd >= m.launch_jd {
+        if let Some(e) = m.phase_at(jd) {
+            section(ui, "Teraz");
+            ui.horizontal_top(|ui| {
+                ui.label(RichText::new(e.icon()).size(17.0).color(kc));
+                ui.vertical(|ui| {
+                    ui.add(egui::Label::new(RichText::new(e.text()).strong()).wrap());
+                    ui.label(RichText::new(tf!("{} temu", time::fmt_duration(jd - e.jd))).small().color(theme::paper_3()));
+                });
+            });
+            if let Some(n) = m.events.iter().find(|x| x.jd > jd) {
+                ui.horizontal_top(|ui| {
+                    ui.label(RichText::new(n.icon()).size(15.0).color(theme::paper_3()));
+                    ui.add(egui::Label::new(RichText::new(tf!("Dalej: {} (za {})", n.text(), time::fmt_duration(n.jd - jd))).small().color(theme::paper_2())).wrap());
+                });
+            }
+        }
+    }
+    if !m.parts.is_empty() {
+        parts(app, ui, i, jd, kc);
+    }
 
     // odczyty na żywo
     let t = app.trajs.get(i);
@@ -221,7 +266,9 @@ fn mission(app: &mut App, ui: &mut egui::Ui, i: usize) {
                 p.rect_stroke(rect, 8.0, egui::Stroke::new(1.0_f32, theme::BRASS), egui::StrokeKind::Inside);
             }
             let dot = rect.left_center() + egui::vec2(12.0, 0.0);
-            if past {
+            if e.k.is_some() {
+                p.text(dot, egui::Align2::CENTER_CENTER, e.icon(), egui::FontId::proportional(15.0), if past { kc } else { kc.gamma_multiply(0.5) });
+            } else if past {
                 p.circle_filled(dot, 5.0, kc);
             } else {
                 p.circle_stroke(dot, 5.0, egui::Stroke::new(1.5_f32, kc));
@@ -391,6 +438,54 @@ fn body(app: &mut App, ui: &mut egui::Ui, id: usize) {
             let m = &missions::db().missions[mi];
             if theme::row_button(ui, m.kind.icon(), &format!("{} · {}", m.name, &m.launch[..4]), false).clicked() {
                 app.select_mission(mi, false);
+            }
+        }
+    }
+}
+
+/// Skład zestawu w chwili `jd`: co jest połączone, co odłączone i gdzie jest teraz.
+fn parts(app: &mut App, ui: &mut egui::Ui, i: usize, jd: f64, kc: Color32) {
+    use crate::missions::PartState;
+    let m = &missions::db().missions[i];
+    let states: Vec<PartState> = (0..m.parts.len()).map(|k| m.part_state(k, jd)).collect();
+    let attached = states.iter().filter(|s| **s == PartState::Attached).count();
+    section(ui, &tf!("Skład zestawu · połączone {} z {}", attached, m.parts.len()));
+    let trajs = app.trajs.get(i);
+    for (k, part) in m.parts.iter().enumerate() {
+        let st = states[k];
+        ui.horizontal_top(|ui| {
+            let (glyph, col) = match st {
+                PartState::Attached => (theme::icon::LINK, kc),
+                PartState::Separated { .. } => (theme::icon::LINK_BREAK, theme::paper_3()),
+                PartState::NotYet => (theme::icon::CIRCLE_DASHED, theme::paper_3()),
+            };
+            ui.label(RichText::new(glyph).size(15.0).color(col));
+            ui.vertical(|ui| {
+                let strong = st == PartState::Attached;
+                let name = RichText::new(part.name());
+                ui.add(egui::Label::new(if strong { name.strong() } else { name.color(theme::paper_2()) }).wrap());
+                let note = match st {
+                    PartState::Attached => tr("w zestawie").to_string(),
+                    PartState::NotYet => tr("dołączy później").to_string(),
+                    PartState::Separated { event, last } => {
+                        let e = &m.events[event];
+                        let when = time::fmt_datetime(e.jd);
+                        match (last, part.fate()) {
+                            (true, Some(f)) => format!("{} · {}", when, f),
+                            _ => format!("{} · {}", when, e.text()),
+                        }
+                    }
+                };
+                ui.add(egui::Label::new(RichText::new(note).small().color(theme::paper_3())).wrap());
+            });
+        });
+        // część lecąca osobno – można na nią spojrzeć
+        let free = trajs.as_ref().and_then(|t| t.companions.iter().find(|c| c.part == k).and_then(|c| c.position(jd)));
+        if let Some(p) = free {
+            if ui.small_button(theme::ic(theme::icon::CROSSHAIR, "Pokaż w 3D")).clicked() {
+                let near = traj::nearest_body(p, jd);
+                let d = if near == SUN { 2.0e9 } else { bodies::get(near).radius * 1.5 };
+                app.set_focus(Focus::Body(near), Some(d));
             }
         }
     }

@@ -4,7 +4,9 @@
 pub mod archive;
 pub mod catalog;
 pub mod charts;
+pub mod datepick;
 pub mod details;
+pub mod missions_window;
 pub mod palette;
 pub mod scene;
 pub mod theme;
@@ -105,8 +107,33 @@ pub fn glyph_button(ui: &mut egui::Ui, glyph: &str, on: bool, hint: &str) -> egu
     resp.on_hover_text(tr(hint))
 }
 
-/// Górny pasek na całą szerokość okna: logo, wyszukiwarka, warstwy, ustawienia.
+/// Przycisk z ikoną i napisem na górnym pasku (np. „Misje ▾”).
+pub fn menu_button(ui: &mut egui::Ui, glyph: &str, text: &str, on: bool, hint: &str) -> egui::Response {
+    let label = format!("{glyph}  {}  {}", tr(text), theme::icon::CARET_DOWN);
+    let col = if on { theme::BRASS } else { theme::PAPER };
+    let g = ui.painter().layout_no_wrap(label, egui::FontId::proportional(14.5), col);
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(g.size().x + 22.0, 36.0), egui::Sense::click());
+    theme::focus_ring(ui, &resp, rect, 9.0);
+    let p = ui.painter();
+    let bg = if on { theme::BRASS_DIM } else if resp.hovered() { Color32::from_white_alpha(18) } else { Color32::from_white_alpha(8) };
+    p.rect_filled(rect, 9.0, bg);
+    p.galley(egui::pos2(rect.left() + 11.0, rect.center().y - g.size().y / 2.0), g, col);
+    resp.on_hover_text(tr(hint))
+}
+
+const MONTHS: [&str; 12] = ["stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca", "lipca", "sierpnia", "września", "października", "listopada", "grudnia"];
+
+/// „16 czerwca 1963” – data słownie.
+pub fn fmt_long_date(jd: f64) -> String {
+    use chrono::Datelike;
+    let d = crate::astro::time::to_datetime(jd);
+    tf!("{} {} {}", d.day(), tr(MONTHS[d.month0() as usize]), d.year())
+}
+
+/// Górny pasek na całą szerokość okna: panel, misje, ciała – data na środku – wyszukiwarka, warstwy, ustawienia.
 pub fn top_bar(app: &mut App, ctx: &egui::Context) {
+    use chrono::Timelike;
+    use crate::app::Menu;
     let screen = ctx.content_rect();
     let bar = egui::Rect::from_min_size(screen.min, egui::vec2(screen.width(), TOP_BAR_H));
     app.glass.push((bar, 1.0));
@@ -120,24 +147,49 @@ pub fn top_bar(app: &mut App, ctx: &egui::Context) {
             ui.spacing_mut().item_spacing.x = 6.0;
             let logo = theme::logo(ui.ctx());
             ui.add(egui::Image::new(&logo).fit_to_exact_size(egui::vec2(30.0, 30.0)).corner_radius(7));
-            ui.label(RichText::new("OpenSpacecraft").size(17.0).strong());
-            ui.add_space(10.0);
-            if glyph_button(ui, theme::icon::SIDEBAR_SIMPLE, app.prefs.catalog_open, "Katalog (Tab)").clicked() {
+            if screen.width() > 1400.0 {
+                ui.label(RichText::new("OpenSpacecraft").size(17.0).strong());
+            }
+            ui.add_space(8.0);
+            if glyph_button(ui, theme::icon::SIDEBAR_SIMPLE, app.prefs.catalog_open, "Satelity i starty w wybranej chwili (Tab)").clicked() {
                 app.prefs.catalog_open = !app.prefs.catalog_open;
             }
+            if menu_button(ui, theme::icon::ROCKET_LAUNCH, "Misje", app.missions_open, "Przeglądaj i filtruj misje (M)").clicked() {
+                app.missions_open = !app.missions_open;
+                app.menu = None;
+            }
+            let bodies_on = matches!(app.menu, Some((Menu::Bodies, _)));
+            let r = menu_button(ui, theme::icon::PLANET, "Ciała", bodies_on, "Planety, księżyce, planetoidy i komety");
+            if r.clicked() {
+                app.menu = if bodies_on { None } else { Some((Menu::Bodies, r.rect)) };
+            }
         });
-        // wyszukiwarka na środku
-        let w = (screen.width() * 0.3).clamp(240.0, 460.0);
-        let r = egui::Rect::from_center_size(inner.center(), egui::vec2(w, 36.0));
+        // data – najważniejszy element, na środku paska
+        let r = egui::Rect::from_center_size(inner.center(), egui::vec2(330.0, TOP_BAR_H - 10.0));
+        let date_on = matches!(app.menu, Some((Menu::Date, _)));
         ui.scope_builder(egui::UiBuilder::new().max_rect(r), |ui| {
             let (rect, resp) = ui.allocate_exact_size(r.size(), egui::Sense::click());
+            theme::focus_ring(ui, &resp, rect, 12.0);
+            let jd = app.clock.jd;
+            let d = crate::astro::time::to_datetime(jd);
+            let live = app.clock.playing && (app.clock.rate - 1.0).abs() < 1e-6 && (jd - crate::astro::time::now()).abs() < 1.0 / 1440.0;
+            let state = if live {
+                tr("na żywo").to_string()
+            } else if app.clock.playing {
+                fmt_rate(app.clock.rate)
+            } else {
+                tr("zatrzymany").to_string()
+            };
             let p = ui.painter();
-            p.rect_filled(rect, 18.0, if resp.hovered() { Color32::from_white_alpha(22) } else { Color32::from_white_alpha(12) });
-            p.text(rect.left_center() + egui::vec2(16.0, 0.0), egui::Align2::LEFT_CENTER, theme::icon::MAGNIFYING_GLASS, egui::FontId::proportional(16.0), theme::paper_3());
-            p.text(rect.left_center() + egui::vec2(42.0, 0.0), egui::Align2::LEFT_CENTER, tr("Szukaj misji, satelitów, ciał niebieskich…"), egui::FontId::proportional(14.0), theme::paper_3());
-            p.text(rect.right_center() - egui::vec2(16.0, 0.0), egui::Align2::RIGHT_CENTER, "Ctrl+K", egui::FontId::monospace(11.0), theme::paper_3());
-            if resp.clicked() {
-                app.palette = Some(Default::default());
+            let bg = if date_on { theme::BRASS_DIM } else if resp.hovered() { Color32::from_white_alpha(22) } else { Color32::from_white_alpha(10) };
+            p.rect_filled(rect, 12.0, bg);
+            p.text(rect.left_center() + egui::vec2(16.0, 0.0), egui::Align2::LEFT_CENTER, theme::icon::CALENDAR_BLANK, egui::FontId::proportional(20.0), theme::BRASS);
+            p.text(egui::pos2(rect.center().x + 8.0, rect.top() + 5.0), egui::Align2::CENTER_TOP, fmt_long_date(jd), egui::FontId::proportional(17.0), theme::PAPER);
+            let sub = format!("{:02}:{:02}:{:02} UTC  ·  {}", d.hour(), d.minute(), d.second(), state);
+            p.text(egui::pos2(rect.center().x + 8.0, rect.bottom() - 5.0), egui::Align2::CENTER_BOTTOM, sub, egui::FontId::monospace(11.5), if live { theme::OK } else { theme::paper_2() });
+            p.text(rect.right_center() - egui::vec2(14.0, 0.0), egui::Align2::RIGHT_CENTER, theme::icon::CARET_DOWN, egui::FontId::proportional(14.0), theme::paper_2());
+            if resp.on_hover_text(tr("Wybierz datę i godzinę (D)")).clicked() {
+                app.menu = if date_on { None } else { Some((Menu::Date, rect)) };
             }
         });
         ui.scope_builder(egui::UiBuilder::new().max_rect(inner).layout(egui::Layout::right_to_left(egui::Align::Center)), |ui| {
@@ -150,6 +202,9 @@ pub fn top_bar(app: &mut App, ctx: &egui::Context) {
             }
             if glyph_button(ui, theme::icon::CHAT_CIRCLE_TEXT, false, "Zgłoś błąd lub sugestię").clicked() {
                 app.feedback.open();
+            }
+            if glyph_button(ui, theme::icon::MAGNIFYING_GLASS, app.palette.is_some(), "Szukaj misji, satelitów, ciał niebieskich (Ctrl+K)").clicked() {
+                app.palette = Some(Default::default());
             }
             ui.separator();
             let l = &mut app.prefs.layers;
@@ -168,6 +223,42 @@ pub fn top_bar(app: &mut App, ctx: &egui::Context) {
             }
         });
     });
+}
+
+/// Rozwijane menu górnego paska: wybór daty albo lista ciał niebieskich.
+pub fn menus(app: &mut App, ctx: &egui::Context) {
+    use crate::app::Menu;
+    let Some((menu, anchor)) = app.menu else { return };
+    let screen = ctx.content_rect();
+    let (pos, width) = match menu {
+        Menu::Date => (egui::pos2(screen.center().x - 210.0, screen.top() + TOP_BAR_H + 6.0), 420.0),
+        Menu::Bodies => (egui::pos2(anchor.left().max(screen.left() + 8.0), screen.top() + TOP_BAR_H + 6.0), 340.0),
+    };
+    let max_h = (screen.height() - TOP_BAR_H - TIMELINE_H - 24.0).max(240.0);
+    let mut close = false;
+    let resp = egui::Area::new(egui::Id::new("menu-gorne")).fixed_pos(pos).order(egui::Order::Foreground).show(ctx, |ui| {
+        egui::Frame::new()
+            .fill(theme::POPUP_FILL)
+            .corner_radius(14)
+            .stroke(egui::Stroke::new(1.0_f32, theme::glass_edge()))
+            .inner_margin(egui::Margin::same(14))
+            .show(ui, |ui| {
+                ui.set_width(width - 28.0);
+                match menu {
+                    Menu::Date => datepick::show(app, ui),
+                    Menu::Bodies => {
+                        ui.set_max_height(max_h - 28.0);
+                        close = catalog::bodies_list(app, ui);
+                    }
+                }
+            });
+    });
+    // kliknięcie poza menu (i poza przyciskiem, który je otworzył) zamyka je
+    let rect = resp.response.rect;
+    let outside = ctx.input(|i| i.pointer.any_pressed() && i.pointer.interact_pos().is_some_and(|p| !rect.contains(p) && !anchor.contains(p)));
+    if close || (outside && app.palette.is_none()) {
+        app.menu = None;
+    }
 }
 
 /// Sterowanie kamerą w prawym dolnym rogu widoku.
