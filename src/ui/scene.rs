@@ -124,7 +124,7 @@ impl App {
                 }
                 Selection::Sat(n) => self.select_sat(n),
                 Selection::Body(b) => self.select_body(b),
-                Selection::None => {}
+                Selection::Craft(_) | Selection::Launch(_) | Selection::None => {}
             }
         }
         if esc {

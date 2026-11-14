@@ -47,9 +47,14 @@ pub fn details(app: &mut App, ctx: &egui::Context) {
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                 ui.set_max_width(DETAILS_W - 36.0);
                 match app.selection {
-                    Selection::Mission(i) => mission(app, ui, i),
+                    Selection::Mission(i) => {
+                        mission(app, ui, i);
+                        super::archive::mission_extra(app, ui, &missions::db().missions[i].id);
+                    }
                     Selection::Sat(n) => satellite(app, ui, n),
                     Selection::Body(b) => body(app, ui, b),
+                    Selection::Craft(c) => super::archive::craft(app, ui, c),
+                    Selection::Launch(l) => super::archive::launch(app, ui, l),
                     Selection::None => {}
                 }
             });
@@ -94,6 +99,7 @@ fn mission(app: &mut App, ui: &mut egui::Ui, i: usize) {
             app.clock.jd = m.end_jd.unwrap_or(jd) - 1.0 / 24.0;
         }
     });
+    super::archive::mission_photo(ui, &m.id);
     theme::para(ui, m.summary());
 
     // odczyty na żywo

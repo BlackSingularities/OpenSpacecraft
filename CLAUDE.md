@@ -7,6 +7,7 @@
 - **Pobieranie i aktualizacje przez redzikowski.com** (projekt `openspacecraft` w portfolio, `releaseSource: 'github'`): program pyta `redzikowski.com/api/releases/repos/BlackSingularities/OpenSpacecraft/releases/latest`, sprawdza SHA-512 z `latest.yml` i uruchamia instalator z UAC. Zgłoszenia: `app: 'openspacecraft'`.
 - **Języki**: napisy w kodzie po polsku przez `tr("…")` / `tf!("…", …)`; nowy napis → `lang/en.tsv`. Opisy misji są w danych (`pl`/`en`).
 - **Dane**: `data/missions.json` (misje: wydarzenia, model trajektorii `traj`, opcjonalnie `horizons` – identyfikator JPL), `data/vehicles.json`, `data/sites.json`, `data/small_bodies.json`. Nowa misja z identyfikatorem Horizons → `python tools/fetch_horizons.py <id>` (uzupełnia `assets/trajectories.bin`).
+- **Katalog (archiwum)**: `data/catalog/` – statyczne dane z Wikidata, NASA NSSDCA, Launch Library 2 i SATCAT (`tools/catalog/`, opis w `tools/catalog/README.md`); z sieci tylko zdjęcia (`photos.rs`). Tłumaczenia PL katalogu: `data/catalog/pl.json`, edytor `python -I tools/translate/server.py`.
 - Struktura: `astro/` (czas, VSOP87, Księżyc, Kepler/Lambert, ciała), `missions/` (baza, `traj.rs` – trajektorie), `sats.rs` (CelesTrak, SGP4, starty), `render/` (wgpu, `space.wgsl`), `ui/` (scena, panele, oś czasu, paleta, okna).
 - Zrzuty ekranu: `tools/capture.sh <plik> <misja@data> [odległość] [yaw] [pitch] [zakładka]`; plakat: `node ../Homepage/scripts/posters/build.mjs .`.
 - Nie używaj `border-left` ani zamienników lewej belki w UI.

@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tłumaczenia OpenSpacecraft</title>
+<style>
+:root{--bg:#0d1016;--panel:#151a23;--panel2:#1c2330;--line:#2a3344;--ink:#e7e2d6;--ink2:#a9a395;--brass:#d9a85b;--ok:#6fcf97;--warn:#e8b44a;--bad:#e06c6c;--acc:#7fb2ff}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:14px/1.5 "Segoe UI",system-ui,sans-serif}
+header{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+header h1{font-size:16px;margin:0 12px 0 0;color:var(--brass);font-weight:600}
+select,input[type=search]{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px 9px;font:inherit}
+input[type=search]{min-width:220px;flex:1}
+.prog{display:flex;align-items:center;gap:8px;color:var(--ink2);font-size:12px;min-width:220px}
+.bar{flex:1;height:7px;background:var(--panel2);border-radius:4px;overflow:hidden;min-width:100px}
+.bar i{display:block;height:100%;background:var(--brass)}
+main{display:grid;grid-template-columns:380px 1fr;height:calc(100% - 58px)}
+#list{overflow:auto;background:var(--panel);border-right:1px solid var(--line)}
+.it{padding:8px 14px;cursor:pointer;border-bottom:1px solid #1b2130;display:flex;gap:9px;align-items:flex-start}
+.it:hover{background:var(--panel2)}
+.it.sel{background:#243049}
+.dot{width:9px;height:9px;border-radius:50%;margin-top:6px;flex:none;background:var(--line)}
+.dot.done{background:var(--ok)}.dot.hint{background:var(--warn)}
+.it b{display:block;font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px}
+.it small{color:var(--ink2);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px}
+.tag{font-size:10px;text-transform:uppercase;letter-spacing:.05em;padding:1px 6px;border-radius:5px;background:var(--panel2);color:var(--ink2);margin-right:4px}
+.pager{display:flex;justify-content:space-between;align-items:center;padding:8px 14px;color:var(--ink2);font-size:12px;position:sticky;bottom:0;background:var(--panel);border-top:1px solid var(--line)}
+button{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px 12px;font:inherit;cursor:pointer}
+button:hover{border-color:var(--brass)}
+button.pri{background:var(--brass);color:#1a1408;border-color:var(--brass);font-weight:600}
+#ed{overflow:auto;padding:18px 24px 80px}
+.head{display:flex;gap:16px;align-items:flex-start;margin-bottom:12px}
+.head img{width:150px;height:110px;object-fit:cover;border-radius:8px;background:var(--panel2);flex:none}
+.head h2{margin:0 0 4px;font-size:18px}
+.src a{color:var(--acc);font-size:12px;margin-right:12px;text-decoration:none}
+.src a:hover{text-decoration:underline}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:10px 0}
+.en{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;white-space:pre-wrap;color:var(--ink2)}
+.en.h{color:var(--brass);font-weight:600}
+textarea{width:100%;min-height:72px;background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font:inherit;resize:vertical}
+textarea:focus{outline:none;border-color:var(--brass)}
+.tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;position:sticky;bottom:0;background:var(--bg);padding:12px 0;border-top:1px solid var(--line);margin-top:16px}
+.st{color:var(--ink2);font-size:12px;margin-left:auto}
+.gl{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--ink2);margin:8px 0}
+.gl span{display:inline-block;margin:2px 10px 2px 0}.gl em{color:var(--ink);font-style:normal}
+.empty{color:var(--ink2);padding:60px;text-align:center}
+kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:0 5px;font-size:11px}
+@media (max-width:900px){main{grid-template-columns:1fr}#list{max-height:40vh}.pair{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>OpenSpacecraft · tłumaczenia EN → PL</h1>
+  <select id="cat">
+    <option value="">wszystkie rodzaje</option>
+    <option value="term">pojęcia</option>
+    <option value="short">krótkie opisy</option>
+    <option value="desc">pełne opisy (NSSDCA)</option>
+    <option value="launch">opisy startów</option>
+  </select>
+  <select id="stat">
+    <option value="todo">do przetłumaczenia</option>
+    <option value="done">przetłumaczone</option>
+    <option value="all">wszystkie</option>
+  </select>
+  <select id="sort">
+    <option value="p">najważniejsze najpierw</option>
+    <option value="n">kolejność katalogu</option>
+    <option value="len">najkrótsze najpierw</option>
+  </select>
+  <input type="search" id="q" placeholder="Szukaj (nazwa, COSPAR, tekst)…">
+  <div class="prog"><span id="pt">–</span><div class="bar"><i id="pb" style="width:0"></i></div></div>
+</header>
+<main>
+  <div id="list"></div>
+  <div id="ed"><div class="empty">Wybierz pozycję z listy.<br><br><kbd>Ctrl</kbd>+<kbd>Enter</kbd> zapisuje i przechodzi dalej · <kbd>Alt</kbd>+<kbd>↓</kbd>/<kbd>↑</kbd> następna/poprzednia</div></div>
+</main>
+<script>
+const PAGE = 150;
+let items = [], pl = {}, view = [], page = 0, cur = -1, dirty = false;
+const $ = s => document.querySelector(s);
+const esc = s => (s || "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const paras = t => (t || "").split(/\n\n+/);
+
+async function init() {
+  const r = await fetch("/api/data"); const d = await r.json();
+  items = d.items; pl = d.pl;
+  items.forEach((it, i) => it.i = i);
+  for (const id of ["cat", "stat", "sort"]) $("#" + id).onchange = () => { page = 0; filter(); };
+  let t; $("#q").oninput = () => { clearTimeout(t); t = setTimeout(() => { page = 0; filter(); }, 200); };
+  filter(); progress();
+}
+
+function progress() {
+  const cat = $("#cat").value;
+  const pool = cat ? items.filter(i => i.c === cat) : items;
+  const done = pool.filter(i => pl[i.k]).length;
+  $("#pt").textContent = `${done} / ${pool.length}`;
+  $("#pb").style.width = (pool.length ? 100 * done / pool.length : 0) + "%";
+}
+
+function filter() {
+  const cat = $("#cat").value, st = $("#stat").value, q = $("#q").value.trim().toLowerCase(), so = $("#sort").value;
+  view = items.filter(i => (!cat || i.c === cat) && (st === "all" || (st === "done") === !!pl[i.k]) &&
+    (!q || i.title.toLowerCase().includes(q) || i.k.toLowerCase().includes(q) || i.en.toLowerCase().includes(q) || (pl[i.k] || "").toLowerCase().includes(q)));
+  if (so === "p") view.sort((a, b) => (b.p || 0) - (a.p || 0) || (b.n || 0) - (a.n || 0) || a.i - b.i);
+  if (so === "len") view.sort((a, b) => a.en.length - b.en.length);
+  renderList(); progress();
+}
+
+const CL = {term: "pojęcie", short: "krótki", desc: "opis", launch: "start"};
+function renderList() {
+  const from = page * PAGE, part = view.slice(from, from + PAGE);
+  $("#list").innerHTML = part.map(it => `<div class="it${it.i === cur ? " sel" : ""}" data-i="${it.i}">
+    <span class="dot ${pl[it.k] ? "done" : it.hint ? "hint" : ""}"></span>
+    <div><b>${esc(it.c === "term" ? it.en : it.title)}</b><small><span class="tag">${CL[it.c]}</span>${esc((pl[it.k] || it.en).slice(0, 90))}</small></div></div>`).join("") +
+    `<div class="pager"><button id="pv" ${page ? "" : "disabled"}>‹</button><span>${view.length ? from + 1 : 0}–${Math.min(from + PAGE, view.length)} z ${view.length}</span><button id="nx" ${from + PAGE < view.length ? "" : "disabled"}>›</button></div>`;
+  $("#list").querySelectorAll(".it").forEach(e => e.onclick = () => open(+e.dataset.i));
+  $("#pv").onclick = () => { page--; renderList(); $("#list").scrollTop = 0; };
+  $("#nx").onclick = () => { page++; renderList(); $("#list").scrollTop = 0; };
+}
+
+function glossary(en) {
+  const low = en.toLowerCase();
+  const hits = items.filter(i => i.c === "term" && pl[i.k] && i.en.length > 3 && low.includes(i.en.toLowerCase())).slice(0, 14);
+  return hits.length ? `<div class="gl">Pojęcia: ${hits.map(h => `<span>${esc(h.en)} → <em>${esc(pl[h.k])}</em></span>`).join("")}</div>` : "";
+}
+
+function open(i) {
+  if (dirty && !confirm("Masz niezapisane zmiany. Porzucić?")) return;
+  cur = i; dirty = false;
+  const it = items[i], have = pl[it.k] || "", en = paras(it.en);
+  const tr = have ? paras(have) : (it.hint ? [it.hint] : []);
+  const img = it.img ? `<img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(it.img)}?width=300" alt="">` : "";
+  $("#ed").innerHTML = `<div class="head">${img}<div><h2>${esc(it.title)}</h2>
+    <div><span class="tag">${CL[it.c]}</span><span class="tag">${esc(it.k)}</span>${it.hint && !have ? `<button id="hintb" style="padding:1px 8px;font-size:11px" title="Wstaw polski opis z Wikidata">Wikidata PL: ${esc(it.hint)}</button>` : ""}</div>
+    <div class="src">${(it.src || []).map(u => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(new URL(u).hostname.replace("www.", ""))}</a>`).join("")}</div></div></div>
+    ${glossary(it.en)}
+    ${en.map((p, n) => { const h = p.startsWith("## "); return `<div class="pair"><div class="en${h ? " h" : ""}">${esc(h ? p.slice(3) : p)}</div>
+      <textarea data-n="${n}" data-h="${h ? 1 : ""}" rows="${Math.max(2, Math.ceil(p.length / 70))}" placeholder="${h ? "Śródtytuł po polsku" : "Tłumaczenie…"}">${esc(have ? (tr[n] || "").replace(/^## /, "") : "")}</textarea></div>`; }).join("")}
+    <div class="tools"><button class="pri" id="sv">Zapisz i dalej</button><button id="s1">Zapisz</button><button id="cl">Usuń tłumaczenie</button>
+      <button id="dl" title="Otwiera DeepL w przeglądarce z tekstem źródłowym">DeepL ↗</button><span class="st" id="st">${have ? "przetłumaczone" : "brak tłumaczenia"}</span></div>`;
+  if (!have && it.hint) { const b = $("#hintb"); b.onclick = () => { $("#ed textarea").value = it.hint; dirty = true; }; }
+  $("#ed").querySelectorAll("textarea").forEach(t => t.oninput = () => { dirty = true; $("#st").textContent = "niezapisane zmiany"; });
+  $("#sv").onclick = () => save(true); $("#s1").onclick = () => save(false);
+  $("#cl").onclick = () => { $("#ed").querySelectorAll("textarea").forEach(t => t.value = ""); save(false); };
+  $("#dl").onclick = () => window.open("https://www.deepl.com/translator#en/pl/" + encodeURIComponent(it.en.replace(/^## /gm, "").slice(0, 4500)), "_blank", "noopener");
+  renderList();
+  const first = [...$("#ed").querySelectorAll("textarea")].find(t => !t.value) || $("#ed textarea");
+  first && first.focus();
+  $("#ed").scrollTop = 0;
+}
+
+async function save(next) {
+  const it = items[cur]; if (!it) return;
+  const tas = [...$("#ed").querySelectorAll("textarea")];
+  const filled = tas.filter(t => t.value.trim());
+  if (filled.length && filled.length < tas.length && !confirm("Nie wszystkie akapity są przetłumaczone. Zapisać mimo to?")) return;
+  const text = filled.length ? tas.map(t => (t.dataset.h ? "## " : "") + t.value.trim()).filter(s => s && s !== "## ").join("\n\n") : "";
+  const r = await fetch("/api/save", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({k: it.k, pl: text})});
+  if (!r.ok) { $("#st").textContent = "błąd zapisu!"; $("#st").style.color = "var(--bad)"; return; }
+  if (text) pl[it.k] = text; else delete pl[it.k];
+  dirty = false; $("#st").textContent = "zapisano ✓"; progress();
+  if (next) step(1); else renderList();
+}
+
+function step(d) {
+  const pos = view.findIndex(v => v.i === cur);
+  const nx = view[pos + d] || (d > 0 && $("#stat").value === "todo" ? view.find(v => !pl[v.k] && v.i !== cur) : null);
+  if ($("#stat").value === "todo") { const keep = cur; filter(); cur = keep; }
+  if (nx) { const np = view.findIndex(v => v.i === nx.i); if (np >= 0) page = Math.floor(np / PAGE); open(nx.i); }
+}
+
+document.addEventListener("keydown", e => {
+  if (e.ctrlKey && e.key === "Enter") { e.preventDefault(); save(true); }
+  if (e.altKey && e.key === "ArrowDown") { e.preventDefault(); step(1); }
+  if (e.altKey && e.key === "ArrowUp") { e.preventDefault(); step(-1); }
+});
+window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+init();
+</script>
+</body>
+</html>

@@ -106,7 +106,6 @@ Kosmodromy	Launch sites
 Starty w kolejnych latach	Launches per year
 Misje z bazy – odtwórz start	Missions in the database – replay the launch
 Wszystkie starty – kliknij, by odtworzyć	All launches – click to replay
-Starty pochodzą z katalogu SATCAT (CelesTrak): obiekty o wspólnym numerze COSPAR to jeden start. Katalog podaje tylko datę startu, więc odtworzenie zaczyna się o północy UTC tego dnia.	Launches come from the SATCAT catalogue (CelesTrak): objects sharing a COSPAR number form one launch. The catalogue gives only the launch date, so the replay starts at midnight UTC that day.
 brak danych	no data
 {}: satelity {}, człony rakiet {}, odłamki {}, inne {}	{}: satellites {}, rocket bodies {}, debris {}, other {}
 maks. {} / rok (skala pierwiastkowa)	max {} / year (square-root scale)
@@ -255,3 +254,59 @@ Brak sumy SHA-512 w latest.yml.	No SHA-512 checksum in latest.yml.
 Pobrany instalator ma niezgodną sumę kontrolną – spróbuj ponownie później.	The downloaded installer has a wrong checksum – please try again later.
 Instalacja aktualizacji została przerwana (brak zgody administratora?).	The update installation was cancelled (no administrator consent?).
 Aktualizacje tylko w systemie Windows.	Updates work on Windows only.
+Nazwa, COSPAR, operator, rok…	Name, COSPAR, operator, year…
+{} statków kosmicznych · {} startów	{} spacecraft · {} launches
+Źródła	Sources
+Pełny opis (NASA NSSDCA)	Full description (NASA NSSDCA)
+Pokaż w archiwum	Show in archive
+misja w atlasie 3D	mission in the 3D atlas
+Pokaż misję w 3D	Show mission in 3D
+Pokaż na orbicie	Show in orbit
+Dane	Data
+Kraj	Country
+Operator	Operator
+Producent	Manufacturer
+Moc	Power
+Dziedziny	Disciplines
+Inne nazwy	Other names
+Start rakiety	Launch
+Opis	Description
+udany	successful
+nieudany	failed
+Przejdź do chwili startu	Go to launch time
+Dane startu	Launch data
+Data	Date
+Operator startu	Launch provider
+Kosmodrom	Spaceport
+Stanowisko	Pad
+Współrzędne	Coordinates
+Orbita docelowa	Target orbit
+Przyczyna awarii	Failure cause
+Wyniesione obiekty	Payloads and objects
+Wszystkie starty roku ({})	All launches of the year ({})
+Archiwum	Archive
+Szczegóły startu	Launch details
+COSPAR	COSPAR
+Starty pochodzą z katalogu SATCAT (CelesTrak): obiekty o wspólnym numerze COSPAR to jeden start. Godziny, rakiety i opisy – z Launch Library 2 (The Space Devs), wbudowane w program. Ikona ⓘ otwiera kartę startu.	Launches come from the SATCAT catalog (CelesTrak): objects sharing a COSPAR number are one launch. Times, rockets and descriptions come from Launch Library 2 (The Space Devs), built into the program. The ⓘ icon opens the launch card.
+archiwum	archive
+Zdjęcie:	Photo:
+Źródła danych i licencje	Data sources and licenses
+trajektorie sond	spacecraft trajectories
+domena publiczna	public domain
+planetoidy i komety	asteroids and comets
+ruch planet i Księżyca (Bretagnon, Francou; Meeus)	planetary and lunar motion (Bretagnon, Francou; Meeus)
+dane naukowe	scientific data
+parametry ciał, obrót, tekstury	body parameters, rotation, textures
+gwiazdy	stars
+SATCAT, elementy orbit GP (SGP4)	SATCAT, GP orbital elements (SGP4)
+publiczne	public
+archiwum: nazwy, daty, operatorzy, masa, zdjęcia	archive: names, dates, operators, mass, photos
+archiwum: pełne opisy statków	archive: full spacecraft descriptions
+historia startów, opisy i zdjęcia startów	launch history, descriptions and photos
+z podaniem źródła	with attribution
+zdjęcia statków (autor i licencja przy każdym)	spacecraft photos (author and license on each)
+licencje wolne (różne)	free licenses (various)
+odnośniki do artykułów	article links
+Tłumaczenia opisów na polski: OpenSpacecraft. Zdjęcia z sieci są podpisane autorem i licencją; bez znanej licencji nie są pokazywane.	Polish translations of descriptions: OpenSpacecraft. Photos from the web are credited with author and license; photos without a known license are not shown.
+{} z trasą 3D · {} w archiwum	{} with 3D trajectory · {} in archive
+Pokaż też statki z archiwum (bez trasy 3D)	Also show archive spacecraft (no 3D trajectory)

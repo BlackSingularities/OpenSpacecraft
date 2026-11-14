@@ -18,6 +18,7 @@ enum Hit {
     Mission(usize),
     Body(usize),
     Sat(u32, String),
+    Craft(usize),
 }
 
 fn score(hay: &str, q: &str) -> Option<i32> {
@@ -54,6 +55,22 @@ fn search(app: &App, q: &str) -> Vec<(i32, Hit)> {
         }
     }
     if q.len() >= 2 {
+        // archiwum (bez statków powiązanych z misjami – te są wyżej jako misje)
+        let arch = crate::catalog::get();
+        let mut n = 0;
+        for (i, c) in arch.crafts.iter().enumerate() {
+            if c.m.is_some() {
+                continue;
+            }
+            let s = if c.id.to_lowercase() == q { Some(0) } else { score(&c.name, &q).or_else(|| c.name_pl.as_deref().and_then(|p| score(p, &q))).map(|s| s + 3) };
+            if let Some(s) = s {
+                out.push((s, Hit::Craft(i)));
+                n += 1;
+                if n > 40 {
+                    break;
+                }
+            }
+        }
         let cat = app.sats.current();
         let num: Option<u32> = q.parse().ok();
         let mut n = 0;
@@ -114,6 +131,10 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
                         }
                         Hit::Body(i) => (theme::icon::PLANET, bodies::get(*i).name().to_string()),
                         Hit::Sat(n, name) => (theme::icon::BROADCAST, format!("{name}  ·  NORAD {n}")),
+                        Hit::Craft(i) => {
+                            let c = &crate::catalog::get().crafts[*i];
+                            (theme::icon::ARCHIVE, format!("{}  ·  {}  ·  {}", c.name, c.id, tr("archiwum")))
+                        }
                     };
                     let resp = theme::row_button(ui, glyph, &text, k == pal.cursor);
                     if k == pal.cursor && (down || up) {
@@ -134,6 +155,14 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
             match h {
                 Hit::Mission(i) => app.select_mission(*i, false),
                 Hit::Body(i) => app.select_body(*i),
+                Hit::Craft(i) => {
+                    app.selection = crate::app::Selection::Craft(*i);
+                    app.prefs.tab = crate::app::Tab::Missions;
+                    app.prefs.archive = true;
+                    app.search.clear();
+                    app.prefs.catalog_open = true;
+                    app.scroll_to_selected = true;
+                }
                 Hit::Sat(n, _) => {
                     let cat = app.sats.current();
                     if let Some(o) = cat.find(*n) {

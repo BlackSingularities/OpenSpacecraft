@@ -89,7 +89,7 @@ fn settings(app: &mut App, ctx: &egui::Context) {
         }
         ui.add_space(6.0);
         ui.label(theme::kicker("Źródła danych"));
-        theme::para(ui, "Trajektorie sond: NASA/JPL Horizons (domena publiczna). Planety: VSOP87 (Bretagnon, Francou), Księżyc: ELP-2000/82 (Meeus). Planetoidy i komety: JPL SBDB. Parametry ciał, obrót i tekstury: symulator Orbiter (Martin Schweiger, licencja MIT). Gwiazdy: Yale Bright Star Catalogue. Satelity: CelesTrak (SATCAT, elementy GP), propagacja SGP4.");
+        super::archive::sources_and_licenses(ui);
     });
     if !open {
         app.settings_open = false;

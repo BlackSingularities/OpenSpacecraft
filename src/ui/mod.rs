@@ -1,6 +1,7 @@
 //! Interfejs nad widokiem 3D: górny pasek, katalog (lewy panel), szczegóły (prawy panel),
 //! oś czasu, sterowanie kamerą, okna i paleta wyszukiwania.
 
+pub mod archive;
 pub mod catalog;
 pub mod charts;
 pub mod details;
