@@ -328,3 +328,99 @@ Obiekt	Object
 Części startu i pozostałości ({})	Launch parts and remnants ({})
 Część misji {}	Part of mission {}
 Część startu {}	Part of launch {}
+modele 3D statków (pobierane przy zbliżeniu)	3D spacecraft models (downloaded when you zoom in)
+zasady NASA dla mediów	NASA media usage guidelines
+Stan na {}	State on {}
+Misje tego roku – odtwórz start	Missions this year – replay the launch
+Model 3D z bliska	3D model up close
+Kamera zbliża się do statku – model pobiera się przy pierwszym użyciu	Camera flies up to the spacecraft – the model downloads on first use
+Model:	Model:
+Model 3D dostępny w czasie lotu statku	3D model available while the spacecraft is flying
+Teraz	Now
+{} temu	{} ago
+Dalej: {} (za {})	Next: {} (in {})
+Skład zestawu · połączone {} z {}	Vehicle stack · {} of {} attached
+w zestawie	attached
+dołączy później	joins later
+Pokaż w 3D	Show in 3D
+stycznia	January
+lutego	February
+marca	March
+kwietnia	April
+maja	May
+czerwca	June
+lipca	July
+sierpnia	August
+września	September
+października	October
+listopada	November
+grudnia	December
+Satelity i starty w wybranej chwili (Tab)	Satellites and launches at the chosen moment (Tab)
+Przeglądaj i filtruj misje (M)	Browse and filter missions (M)
+Planety, księżyce, planetoidy i komety	Planets, moons, asteroids and comets
+zatrzymany	paused
+Wybierz datę i godzinę (D)	Choose date and time (D)
+Szukaj misji, satelitów, ciał niebieskich (Ctrl+K)	Search missions, satellites, celestial bodies (Ctrl+K)
+wybór daty	date picker
+okno misji	missions window
+Najważniejsza jest data na środku górnego paska – kliknij ją (albo naciśnij D), by wybrać dzień i godzinę. Satelity, starty i położenia planet w lewym panelu pokazują stan z tej chwili. Zegar na dole przyspiesza, cofa i przesuwa czas.	The date in the middle of the top bar matters most – click it (or press D) to pick a day and time. Satellites, launches and planet positions show the state at that moment. The clock at the bottom speeds up, reverses and scrubs time.
+Przycisk Misje (M) otwiera osobne okno: przeglądaj, filtruj (załogowe, bezzałogowe, kraj, dekada, rodzaj) i sortuj – bez zmiany daty. Wybraną misję odtworzysz od startu: zobaczysz każdy etap, odłączane człony i moduły.	The Missions button (M) opens a separate window: browse, filter (crewed, uncrewed, country, decade, type) and sort – without changing the date. Replay a chosen mission from launch to see every stage, separated rocket stages and modules.
+sty	Jan
+lut	Feb
+mar	Mar
+kwi	Apr
+maj	May
+cze	Jun
+lip	Jul
+sie	Aug
+wrz	Sep
+paź	Oct
+lis	Nov
+gru	Dec
+Pn	Mo
+Wt	Tu
+Śr	We
+Cz	Th
+Pt	Fr
+So	Sa
+Nd	Su
+Sputnik 1 – początek ery kosmicznej	Sputnik 1 – the space age begins
+Gagarin – pierwszy człowiek w kosmosie	Gagarin – first human in space
+Apollo 11 – lądowanie na Księżycu	Apollo 11 – Moon landing
+Start Voyagera 1	Voyager 1 launch
+Teleskop Hubble’a na orbicie	Hubble telescope deployed
+Pierwszy moduł ISS	First ISS module
+Curiosity na Marsie	Curiosity lands on Mars
+Start Teleskopu Webba	Webb telescope launch
+Data symulacji	Simulation date
+Od daty zależy wszystko w widoku: położenia planet, satelity na orbicie i starty w lewym panelu. Misje przeglądasz osobno.	The date drives everything in the view: planet positions, satellites in orbit and launches in the left panel. Missions are browsed separately.
+Rok wcześniej	A year earlier
+Rok później	A year later
+Zatrzymaj czas	Pause time
+Puść czas	Run time
+−1 mies.	−1 mo.
++1 mies.	+1 mo.
+RRRR-MM-DD GG:MM	YYYY-MM-DD HH:MM
+Przejdź	Go
+Ważne chwile	Key moments
+Przeglądanie i filtry nie zmieniają daty. Kliknij misję, by ją pokazać; „Odtwórz” przenosi zegar na jej start.	Browsing and filters don't change the date. Click a mission to show it; 'Replay' moves the clock to its launch.
+Nazwa, agencja, kraj, rok, rakieta, załoga…	Name, agency, country, year, rocket, crew…
+wszystkie	all
+załogowe	crewed
+bezzałogowe	uncrewed
+Rodzaj	Type
+Stan	Status
+Dekada startu	Launch decade
+Zakres	Scope
+Także statki z archiwum (bez trasy 3D)	Also archive spacecraft (no 3D path)
+Wyczyść filtry	Clear filters
+{} misji z przebiegiem 3D	{} missions with a 3D replay
+· {} w archiwum	· {} in the archive
+nazwa	name
+najnowsze	newest
+najstarsze	oldest
+Żadna misja nie pasuje do filtrów.	No mission matches the filters.
+{} etapów · {} części	{} stages · {} parts
+Odtwórz	Replay
+Przenieś zegar na start i odtwórz misję etap po etapie	Move the clock to launch and replay the mission step by step
+Na zdjęciu:	Pictured:

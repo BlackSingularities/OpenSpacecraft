@@ -9,6 +9,7 @@ mod astro;
 mod catalog;
 mod feedback;
 mod missions;
+mod models;
 mod net;
 mod photos;
 mod render;

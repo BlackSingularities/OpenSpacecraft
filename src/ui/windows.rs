@@ -122,6 +122,8 @@ fn help(app: &mut App, ctx: &egui::Context) {
                 ("N", "teraz, czas rzeczywisty"),
                 ("F", "kamera na zaznaczony obiekt"),
                 ("Ctrl+K  /", "wyszukiwarka"),
+                ("D", "wybór daty"),
+                ("M", "okno misji"),
                 ("Esc", "odznacz / zamknij"),
                 ("L  O  S", "etykiety / orbity / satelity"),
                 ("← → ↑ ↓", "obrót kamery"),
@@ -142,8 +144,8 @@ fn help(app: &mut App, ctx: &egui::Context) {
 
 const TOUR: [(&str, &str); 4] = [
     ("Witaj w OpenSpacecraft", "To trójwymiarowy atlas misji kosmicznych. Widzisz Ziemię w tej chwili – razem z tysiącami satelitów krążących po orbicie."),
-    ("Misje", "Lewy panel to katalog: misje, satelity, starty i ciała niebieskie. Dwuklik na misji odtwarza ją od startu – kamera leci za statkiem, a oś czasu pokazuje kolejne wydarzenia."),
-    ("Czas", "Na dole jest zegar symulacji: przyspieszaj (do kilku lat na sekundę), cofaj albo przeciągnij suwak do dowolnej daty od 1957 r. Satelity na orbicie zmieniają się razem z datą."),
+    ("Data", "Najważniejsza jest data na środku górnego paska – kliknij ją (albo naciśnij D), by wybrać dzień i godzinę. Satelity, starty i położenia planet w lewym panelu pokazują stan z tej chwili. Zegar na dole przyspiesza, cofa i przesuwa czas."),
+    ("Misje", "Przycisk Misje (M) otwiera osobne okno: przeglądaj, filtruj (załogowe, bezzałogowe, kraj, dekada, rodzaj) i sortuj – bez zmiany daty. Wybraną misję odtworzysz od startu: zobaczysz każdy etap, odłączane człony i moduły."),
     ("Szczegóły", "Kliknij planetę, statek albo satelitę, by zobaczyć jego dane i odczyty na żywo: odległość, prędkość, wysokość i opóźnienie sygnału."),
 ];
 

@@ -82,6 +82,29 @@ impl Default for Layers {
     }
 }
 
+/// Filtry okna „Misje” (niezależne od daty symulacji).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct MissionFilter {
+    /// 0 – wszystkie, 1 – załogowe, 2 – bezzałogowe.
+    pub crew: u8,
+    /// 0 – trwające, 1 – zakończone, 2 – niepowodzenie (puste – wszystkie).
+    pub status: Vec<u8>,
+    /// Kody krajów (puste – wszystkie).
+    pub countries: Vec<String>,
+    /// Dekady startu: 1950, 1960… (puste – wszystkie).
+    pub decades: Vec<i32>,
+    /// 0 – od najstarszej, 1 – od najnowszej, 2 – wg nazwy.
+    pub sort: u8,
+}
+
+/// Rozwijane menu na górnym pasku.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Menu {
+    Date,
+    Bodies,
+}
+
 /// Stan widoku zapisywany między uruchomieniami.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -94,11 +117,12 @@ pub struct Prefs {
     pub only_active: bool,
     /// Lista misji pokazuje też statki z archiwum.
     pub archive: bool,
+    pub mf: MissionFilter,
 }
 
 impl Default for Prefs {
     fn default() -> Self {
-        Self { layers: Layers::default(), tab: Tab::Missions, catalog_open: true, sat_filter: sats::Filter::default(), kinds: Vec::new(), only_active: false, archive: true }
+        Self { layers: Layers::default(), tab: Tab::Missions, catalog_open: true, sat_filter: sats::Filter::default(), kinds: Vec::new(), only_active: false, archive: true, mf: MissionFilter::default() }
     }
 }
 
@@ -205,9 +229,15 @@ pub struct App {
     pub toast: Option<(String, Instant)>,
     pub settings_open: bool,
     pub help_open: bool,
+    /// Okno przeglądania misji.
+    pub missions_open: bool,
+    /// Otwarte menu górnego paska i prostokąt przycisku, który je otworzył.
+    pub menu: Option<(Menu, egui::Rect)>,
     pub update: Update,
     pub feedback: crate::feedback::FeedbackUi,
     pub date_edit: Option<String>,
+    /// Tekst wpisywany w oknie wyboru daty.
+    pub date_text: Option<String>,
     pub hover: Option<crate::ui::scene::Pick>,
     pub picks: Vec<crate::ui::scene::Pick>,
     pub view_rect: egui::Rect,
@@ -272,9 +302,12 @@ impl App {
             toast: None,
             settings_open: false,
             help_open: false,
+            missions_open: false,
+            menu: None,
             update: Update::Idle,
             feedback: Default::default(),
             date_edit: None,
+            date_text: None,
             hover: None,
             picks: Vec::new(),
             view_rect: egui::Rect::NOTHING,
@@ -333,7 +366,11 @@ impl App {
                 "sats" => Tab::Satellites,
                 "bodies" => Tab::Bodies,
                 "launches" => Tab::Launches,
-                _ => Tab::Missions,
+                "missions" => {
+                    self.missions_open = true;
+                    Tab::Satellites
+                }
+                _ => Tab::Satellites,
             };
         }
     }
@@ -723,6 +760,8 @@ impl eframe::App for App {
         egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| {
             self.view_ui(ui, frame);
         });
+        crate::ui::missions_window::show(self, ctx);
+        crate::ui::menus(self, ctx);
         crate::ui::palette::show(self, ctx);
         crate::ui::windows(self, ctx);
         self.update_banner(ctx);

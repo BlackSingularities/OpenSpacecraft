@@ -157,10 +157,9 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
                 Hit::Body(i) => app.select_body(*i),
                 Hit::Craft(i) => {
                     app.open_craft(*i);
-                    app.prefs.tab = crate::app::Tab::Missions;
                     app.prefs.archive = true;
                     app.search.clear();
-                    app.prefs.catalog_open = true;
+                    app.missions_open = true;
                     app.scroll_to_selected = true;
                 }
                 Hit::Sat(n, _) => {

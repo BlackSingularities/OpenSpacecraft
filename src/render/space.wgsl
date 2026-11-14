@@ -298,3 +298,42 @@ fn fs_glow(i: PointOut) -> @location(0) vec4<f32> {
     let a = (core + halo) * (1.0 - smoothstep(0.85, 1.0, d)) * i.color.a;
     return vec4(i.color.rgb * a, a);
 }
+
+/* ── statki (modele 3D NASA) ──────────────────────────────────────────── */
+
+struct CraftIn {
+    @location(0) p: vec3<f32>,
+    @location(1) c: vec3<f32>,
+};
+
+struct CraftOut {
+    @builtin(position) pos: vec4<f32>,
+    @location(0) world: vec3<f32>,
+    @location(1) c: vec3<f32>,
+};
+
+@vertex
+fn vs_craft(v: CraftIn) -> CraftOut {
+    var o: CraftOut;
+    let w = b.model * vec4(v.p, 1.0);
+    o.world = w.xyz;
+    o.pos = g.view_proj * w;
+    o.c = v.c;
+    return o;
+}
+
+@fragment
+fn fs_craft(i: CraftOut) -> @location(0) vec4<f32> {
+    // normalna ściany z pochodnych położenia (modele bez normalnych), zwrócona do kamery
+    var n = normalize(cross(dpdx(i.world), dpdy(i.world)));
+    let v = normalize(-i.world);
+    if (dot(n, v) < 0.0) {
+        n = -n;
+    }
+    let l = normalize(g.sun_rel.xyz - i.world);
+    let ndl = max(dot(n, l), 0.0);
+    let h = normalize(l + v);
+    let spec = pow(max(dot(n, h), 0.0), 40.0) * 0.3 * step(0.001, ndl);
+    let col = i.c * (ndl * 1.05 + 0.07) + vec3(spec);
+    return vec4(col * g.params.y, 1.0);
+}

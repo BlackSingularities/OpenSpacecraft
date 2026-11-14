@@ -75,21 +75,69 @@ fn decode(bytes: &[u8]) -> Result<egui::ColorImage, String> {
 
 /// Podpis zdjęcia: autor, źródło i licencja (z odnośnikami).
 pub struct Credit<'a> {
-    pub author: Option<&'a str>,
+    pub author: Option<String>,
+    /// Co przedstawia zdjęcie.
+    pub caption: Option<&'a str>,
     pub source: &'a str,
     pub page: Option<String>,
     pub license: Option<&'a str>,
     pub license_url: Option<&'a str>,
 }
 
+/// Autor zdjęcia do podpisu: bez adresów, uciętych nawiasów, sklejonych słów i znaków spoza
+/// czcionki programu (np. chińskich), z „NASA” zamiast pełnej nazwy.
+pub fn clean_author(a: &str) -> Option<String> {
+    let mut s = a.trim().to_string();
+    if let Some(i) = s.find("http") {
+        s.truncate(i);
+    }
+    s = s.replace("National Aeronautics and Space Administration", "NASA");
+    // tylko alfabet łaciński, grecki i cyrylica oraz interpunkcja
+    s = s.chars().filter(|c| (*c as u32) < 0x0530 || (0x2010..=0x2026).contains(&(*c as u32))).collect();
+    // sklejone fragmenty: „STS-91Retouched” → „STS-91, Retouched”, „NASAScan” → „NASA, Scan”
+    let ch: Vec<char> = s.chars().collect();
+    let mut out = String::new();
+    for k in 0..ch.len() {
+        if k >= 1 && k + 1 < ch.len() && ch[k].is_uppercase() && ch[k + 1].is_lowercase() {
+            let digit = ch[k - 1].is_ascii_digit();
+            let caps = k >= 3 && ch[k - 3..k].iter().all(|c| c.is_uppercase());
+            if digit || caps {
+                out.push_str(", ");
+            }
+        }
+        out.push(ch[k]);
+    }
+    s = out;
+    // ucięty nawias na końcu: „NASA (NAS…”
+    if let Some(i) = s.rfind('(') {
+        if !s[i..].contains(')') {
+            s.truncate(i);
+        }
+    }
+    let cyr = |c: char| (0x0400..=0x04FF).contains(&(c as u32));
+    // dwie wersje nazwiska („Alexander Mokletsov / Александр Моклецов”) – zostaje pierwsza
+    if let Some((a, b)) = s.split_once(" / ") {
+        if b.chars().any(cyr) && !a.chars().any(cyr) {
+            s = a.to_string();
+        }
+    }
+    let s = s.split_whitespace().collect::<Vec<_>>().join(" ");
+    let s = s.trim_matches(|c: char| c == '…' || c == '/' || c == '·' || c == ',' || c == ':' || c == ';' || c.is_whitespace()).to_string();
+    (!s.is_empty()).then_some(s)
+}
+
 fn credit_line(ui: &mut egui::Ui, c: &Credit) {
     use crate::ui::theme;
+    if let Some(cap) = c.caption {
+        ui.add(egui::Label::new(egui::RichText::new(cap).small().italics().color(theme::paper_2())).wrap());
+    }
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing.x = 4.0;
         let small = |t: &str| egui::RichText::new(t.to_string()).small().color(theme::paper_3());
         ui.label(small(&format!("{} {}", theme::icon::CAMERA, crate::i18n::tr("Zdjęcie:"))));
-        if let Some(a) = c.author.filter(|a| !a.is_empty()) {
-            ui.label(small(&format!("{a} ·")));
+        if let Some(a) = c.author.as_deref().filter(|a| !a.is_empty()) {
+            ui.label(small(a));
+            ui.label(small("·"));
         }
         match &c.page {
             Some(p) => {
@@ -134,5 +182,20 @@ pub fn show(ui: &mut egui::Ui, url: &str, caption: Option<&Credit>) {
             ui.put(egui::Rect::from_center_size(r.center(), egui::vec2(20.0, 20.0)), egui::Spinner::new());
         }
         Photo::Failed => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::clean_author;
+
+    #[test]
+    fn authors_are_cleaned() {
+        assert_eq!(clean_author("National Aeronautics and Space Administration (NAS").as_deref(), Some("NASA"));
+        assert_eq!(clean_author("NASAScan by Kipp Teague").as_deref(), Some("NASA, Scan by Kipp Teague"));
+        assert_eq!(clean_author("Alexander Mokletsov / Александр Моклецов").as_deref(), Some("Alexander Mokletsov"));
+        assert_eq!(clean_author("https://images.nasa.gov/details/sts088"), None);
+        assert_eq!(clean_author("中国新闻社"), None);
+        assert_eq!(clean_author("McDonald").as_deref(), Some("McDonald"));
     }
 }

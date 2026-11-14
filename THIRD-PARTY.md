@@ -9,6 +9,7 @@
 | Gwiazdy (`assets/stars.bin`) | Yale Bright Star Catalogue, 5th ed. (Hoffleit i Warren) | domena publiczna |
 | Teoria Księżyca | J. Meeus, „Astronomical Algorithms”, rozdz. 47 (ELP-2000/82) | – |
 | Katalog satelitów i elementy GP (pobierane w programie) | CelesTrak (T.S. Kelso) | zgodnie z zasadami CelesTrak |
+| Modele 3D statków (pobierane w programie przy zbliżeniu, `src/models.rs`) | [NASA 3D Resources](https://github.com/nasa/NASA-3D-Resources) | materiały NASA – zasady użycia mediów NASA (bez sugerowania poparcia przez NASA) |
 
 ## Orbiter – licencja MIT
 

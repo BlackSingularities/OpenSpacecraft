@@ -1,4 +1,5 @@
-//! Lewy panel: katalog misji, satelitów, startów i ciał niebieskich.
+//! Lewy panel: stan w wybranej chwili – satelity na orbicie i starty. Lista ciał niebieskich
+//! (menu „Ciała” na górnym pasku) też jest tutaj. Misje mają osobne okno (`missions_window`).
 
 use eframe::egui::{self, Color32, RichText};
 
@@ -7,7 +8,7 @@ use crate::app::{App, Selection, Tab};
 use crate::astro::bodies::{self, Kind as BKind};
 use crate::astro::time;
 use crate::i18n::tr;
-use crate::missions::{self, Kind, Status};
+use crate::missions;
 use crate::sats;
 
 fn c32(c: [f32; 3]) -> Color32 {
@@ -26,16 +27,20 @@ pub fn catalog(app: &mut App, ctx: &egui::Context) {
         egui::Frame::new().fill(theme::glass_fill()).inner_margin(egui::Margin { left: 14, right: (14.0 - gutter) as i8, top: 12, bottom: 12 }).show(ui, |ui| {
             ui.set_width(CATALOG_W - 28.0 + gutter);
             ui.set_height(height - 24.0);
-            // zakładki
+            // nagłówek: wszystko w tym panelu dotyczy wybranej chwili
             ui.horizontal(|ui| {
-                let w = (CATALOG_W - 28.0 - 3.0 * 6.0) / 4.0;
+                ui.label(RichText::new(theme::icon::CALENDAR_BLANK).color(theme::BRASS));
+                ui.label(RichText::new(tf!("Stan na {}", super::fmt_long_date(app.clock.jd))).strong());
+            });
+            ui.add_space(2.0);
+            // zakładki (dawne „Misje” i „Ciała” są teraz na górnym pasku)
+            if !matches!(app.prefs.tab, Tab::Satellites | Tab::Launches) {
+                app.prefs.tab = Tab::Satellites;
+            }
+            ui.horizontal(|ui| {
+                let w = (CATALOG_W - 28.0 - 6.0) / 2.0;
                 ui.spacing_mut().item_spacing.x = 6.0;
-                for (tab, glyph, label) in [
-                    (Tab::Missions, theme::icon::ROCKET_LAUNCH, "Misje"),
-                    (Tab::Satellites, theme::icon::GLOBE_HEMISPHERE_WEST, "Satelity"),
-                    (Tab::Launches, theme::icon::ROCKET, "Starty"),
-                    (Tab::Bodies, theme::icon::PLANET, "Ciała"),
-                ] {
+                for (tab, glyph, label) in [(Tab::Satellites, theme::icon::GLOBE_HEMISPHERE_WEST, "Satelity"), (Tab::Launches, theme::icon::ROCKET, "Starty")] {
                     if theme::tile(ui, glyph, label, app.prefs.tab == tab, w).clicked() {
                         app.prefs.tab = tab;
                     }
@@ -43,10 +48,8 @@ pub fn catalog(app: &mut App, ctx: &egui::Context) {
             });
             ui.add_space(4.0);
             match app.prefs.tab {
-                Tab::Missions | Tab::Archive => missions_tab(app, ui),
-                Tab::Satellites => sats_tab(app, ui),
-                Tab::Bodies => bodies_tab(app, ui),
                 Tab::Launches => launches_tab(app, ui),
+                _ => sats_tab(app, ui),
             }
         });
     });
@@ -58,163 +61,6 @@ fn search_box(ui: &mut egui::Ui, text: &mut String, hint: &str) {
 
 fn matches(hay: &str, needle: &str) -> bool {
     needle.is_empty() || hay.to_lowercase().contains(&needle.to_lowercase())
-}
-
-/* ── misje ───────────────────────────────────────────────────────────── */
-
-fn missions_tab(app: &mut App, ui: &mut egui::Ui) {
-    let db = missions::db();
-    search_box(ui, &mut app.search, "Nazwa, agencja, kraj, rok…");
-    ui.add_space(2.0);
-    ui.horizontal_wrapped(|ui| {
-        ui.spacing_mut().item_spacing = egui::vec2(5.0, 5.0);
-        for k in Kind::ALL {
-            let on = app.prefs.kinds.contains(&k);
-            if toggle_chip(ui, k.label(), Some(k.icon()), on, c32(k.color())).clicked() {
-                if on {
-                    app.prefs.kinds.retain(|x| *x != k);
-                } else {
-                    app.prefs.kinds.push(k);
-                }
-            }
-        }
-        if toggle_chip(ui, tr("trwające teraz"), Some(theme::icon::CLOCK), app.prefs.only_active, theme::OK).clicked() {
-            app.prefs.only_active = !app.prefs.only_active;
-        }
-    });
-    ui.add_space(4.0);
-    let jd = app.clock.jd;
-    // jedna lista: misje z trasą 3D + statki z archiwum (Wikidata, NSSDCA), w kolejności startu
-    let all_kinds = Kind::ALL.iter().all(|k| app.kind_visible(*k));
-    let with_archive = app.prefs.archive && all_kinds;
-    let key = format!("{}|{}|{}|{}|{}", app.search.to_lowercase(), app.prefs.kinds.len(), app.prefs.only_active, with_archive, if app.prefs.only_active { (jd * 24.0) as i64 } else { 0 });
-    if app.archive_list.as_ref().is_none_or(|(k, _)| *k != key) {
-        let s = app.search.trim().to_lowercase();
-        let terms: Vec<&str> = s.split_whitespace().collect();
-        let mut v: Vec<(f64, Entry)> = db
-            .missions
-            .iter()
-            .enumerate()
-            .filter(|(_, m)| app.kind_visible(m.kind))
-            .filter(|(_, m)| !app.prefs.only_active || m.live_at(jd))
-            .filter(|(_, m)| {
-                let s = &app.search;
-                matches(&m.name, s) || matches(&m.agency, s) || matches(&m.country_name(), s) || matches(&m.launch[..4], s) || m.crew.iter().any(|c| matches(c, s))
-            })
-            .map(|(i, m)| (m.launch_jd, Entry::Mission(i)))
-            .collect();
-        if with_archive {
-            let arch = crate::catalog::get();
-            for (i, c) in arch.crafts.iter().enumerate() {
-                if c.parent.is_some() || arch.mission_of_cospar(&c.id).is_some() {
-                    continue; // część startu albo start misji z trasą 3D – są pod jedną pozycją
-                }
-                if app.prefs.only_active && !(c.jd.is_some_and(|a| a <= jd) && c.end_jd.is_none_or(|e| e >= jd) && c.end_jd.is_some()) {
-                    continue;
-                }
-                if terms.iter().all(|t| c.search.contains(t) || c.t0.as_deref().is_some_and(|d| d.starts_with(t))) {
-                    v.push((c.jd.unwrap_or(f64::MAX), Entry::Craft(i)));
-                }
-            }
-        }
-        v.sort_by(|a, b| a.0.total_cmp(&b.0));
-        app.archive_list = Some((key, v.into_iter().map(|(_, e)| e.pack()).collect()));
-    }
-    let list: Vec<Entry> = app.archive_list.as_ref().map(|x| x.1.iter().map(|&p| Entry::unpack(p)).collect()).unwrap_or_default();
-    let n3d = list.iter().filter(|e| matches!(e, Entry::Mission(_))).count();
-    ui.horizontal(|ui| {
-        ui.label(RichText::new(tf!("{} z trasą 3D · {} w archiwum", n3d, super::group((list.len() - n3d) as i64))).small().color(theme::paper_3()));
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if toggle_chip(ui, tr("archiwum"), Some(theme::icon::ARCHIVE), app.prefs.archive, theme::BRASS).on_hover_text(tr("Pokaż też statki z archiwum (bez trasy 3D)")).clicked() {
-                app.prefs.archive = !app.prefs.archive;
-            }
-        });
-    });
-    ui.separator();
-    let scroll = std::mem::take(&mut app.scroll_to_selected);
-    let sel_row = list.iter().position(|e| match (e, app.selection) {
-        (Entry::Mission(i), Selection::Mission(j)) => *i == j,
-        (Entry::Craft(i), Selection::Craft(j)) => *i == j,
-        (Entry::Craft(i), Selection::Sat(n)) => crate::catalog::get().crafts[*i].norad == Some(n),
-        _ => false,
-    });
-    let row_h = 46.0;
-    let mut area = egui::ScrollArea::vertical().auto_shrink([false, false]);
-    if let (true, Some(r)) = (scroll, sel_row) {
-        area = area.vertical_scroll_offset((r as f32 * (row_h + ui.spacing().item_spacing.y) - 160.0).max(0.0));
-    }
-    let n = list.len();
-    area.show_rows(ui, row_h, n + 1, |ui, range| {
-        ui.set_max_width(CATALOG_W - 28.0);
-        for r in range {
-            match list.get(r) {
-                None => {
-                    egui::CollapsingHeader::new(RichText::new(tr("Źródła danych i licencje")).small()).id_salt("arch_src").show(ui, super::archive::sources_and_licenses);
-                }
-                Some(Entry::Mission(i)) => {
-                    let i = *i;
-                    let m = &db.missions[i];
-                    let sel = app.selection == Selection::Mission(i);
-                    let resp = mission_row(ui, m, sel, jd);
-                    if resp.clicked() {
-                        app.select_mission(i, false);
-                    }
-                    if resp.double_clicked() {
-                        app.select_mission(i, true);
-                    }
-                    resp.on_hover_text(tr("Kliknij – pokaż misję · dwuklik – odtwórz od startu"));
-                }
-                Some(Entry::Craft(i)) => {
-                    let i = *i;
-                    let c = &crate::catalog::get().crafts[i];
-                    let sel = app.selection == Selection::Craft(i) || matches!(app.selection, Selection::Sat(n) if Some(n) == c.norad);
-                    if super::archive::craft_row(ui, c, sel).clicked() {
-                        app.open_craft(i);
-                    }
-                }
-            }
-        }
-    });
-}
-
-#[derive(Clone, Copy)]
-enum Entry {
-    Mission(usize),
-    Craft(usize),
-}
-
-impl Entry {
-    fn pack(self) -> usize {
-        match self {
-            Entry::Mission(i) => i << 1,
-            Entry::Craft(i) => (i << 1) | 1,
-        }
-    }
-    fn unpack(p: usize) -> Entry {
-        if p & 1 == 0 { Entry::Mission(p >> 1) } else { Entry::Craft(p >> 1) }
-    }
-}
-
-fn mission_row(ui: &mut egui::Ui, m: &missions::Mission, sel: bool, jd: f64) -> egui::Response {
-    let (rect, resp) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 46.0), egui::Sense::click());
-    theme::focus_ring(ui, &resp, rect, 10.0);
-    let p = ui.painter();
-    let bg = if sel { theme::BRASS_DIM } else if resp.hovered() { Color32::from_white_alpha(16) } else { Color32::TRANSPARENT };
-    p.rect_filled(rect, 10.0, bg);
-    let kc = c32(m.kind.color());
-    p.circle_filled(rect.left_center() + egui::vec2(18.0, 0.0), 14.0, kc.gamma_multiply(0.22));
-    p.text(rect.left_center() + egui::vec2(18.0, 0.0), egui::Align2::CENTER_CENTER, m.kind.icon(), egui::FontId::proportional(15.0), kc);
-    let title = p.layout_no_wrap(m.name.clone(), egui::FontId::proportional(14.0), theme::PAPER);
-    let clip = egui::Rect::from_min_max(rect.min + egui::vec2(40.0, 0.0), rect.max - egui::vec2(8.0, 0.0));
-    ui.painter_at(clip).galley(rect.left_top() + egui::vec2(40.0, 6.0), title, theme::PAPER);
-    let sub = format!("{} · {} · {}", &m.launch[..10], m.agency, m.country_name());
-    ui.painter_at(clip).text(rect.left_bottom() + egui::vec2(40.0, -7.0), egui::Align2::LEFT_BOTTOM, sub, egui::FontId::proportional(11.5), theme::paper_3());
-    if m.live_at(jd) {
-        p.circle_filled(rect.right_center() - egui::vec2(12.0, 0.0), 4.0, theme::OK);
-    } else if m.status == Status::Failed {
-        p.circle_filled(rect.right_center() - egui::vec2(12.0, 0.0), 4.0, theme::SIGNAL);
-    }
-    resp
 }
 
 /* ── satelity ────────────────────────────────────────────────────────── */
@@ -334,10 +180,13 @@ fn sats_tab(app: &mut App, ui: &mut egui::Ui) {
 
 /* ── ciała ───────────────────────────────────────────────────────────── */
 
-fn bodies_tab(app: &mut App, ui: &mut egui::Ui) {
+/// Lista ciał niebieskich (menu „Ciała”); zwraca `true`, gdy wybrano ciało.
+pub fn bodies_list(app: &mut App, ui: &mut egui::Ui) -> bool {
+    let mut picked = false;
+    let width = ui.available_width();
     search_box(ui, &mut app.body_search, "Planeta, księżyc, planetoida, kometa…");
-    egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-        ui.set_max_width(CATALOG_W - 28.0);
+    egui::ScrollArea::vertical().auto_shrink([false, true]).show(ui, |ui| {
+        ui.set_max_width(width);
         let groups: [(&str, &[BKind]); 5] = [
             ("Gwiazda", &[BKind::Star]),
             ("Planety i ich księżyce", &[BKind::Planet, BKind::Moon]),
@@ -382,6 +231,7 @@ fn bodies_tab(app: &mut App, ui: &mut egui::Ui) {
                     }
                     if resp.clicked() {
                         app.select_body(i);
+                        picked = true;
                     }
                 });
             }
@@ -389,6 +239,7 @@ fn bodies_tab(app: &mut App, ui: &mut egui::Ui) {
         ui.add_space(8.0);
         theme::para(ui, "Położenia planet: teoria VSOP87 (Bretagnon i Francou), Księżyca: ELP-2000/82 w ujęciu Meeusa, planetoid i komet: elementy JPL SBDB. Parametry fizyczne, obrót i tekstury: symulator Orbiter (licencja MIT).");
     });
+    picked
 }
 
 /* ── starty ──────────────────────────────────────────────────────────── */
@@ -462,7 +313,7 @@ fn launches_tab(app: &mut App, ui: &mut egui::Ui) {
         // misje z bazy, które wystartowały w tym roku
         let ms: Vec<usize> = db.missions.iter().enumerate().filter(|(_, m)| m.launch_jd >= a && m.launch_jd < b).map(|(i, _)| i).collect();
         if !ms.is_empty() {
-            section(ui, "Misje z bazy – odtwórz start");
+            section(ui, "Misje tego roku – odtwórz start");
             for i in ms {
                 let m = &db.missions[i];
                 let veh = m.vehicle().map(|v| v.name.as_str()).unwrap_or("");
