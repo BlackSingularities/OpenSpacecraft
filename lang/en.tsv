@@ -324,3 +324,7 @@ spłonął w atmosferze {}	re-entered {}
 na orbicie (spłonie {})	in orbit (re-enters {})
 na orbicie – nieczynny, krąży do dziś	in orbit – inactive, still orbiting today
 Obiekt	Object
+ · +{} części	 · +{} parts
+Części startu i pozostałości ({})	Launch parts and remnants ({})
+Część misji {}	Part of mission {}
+Część startu {}	Part of launch {}
