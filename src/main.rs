@@ -6,9 +6,11 @@ mod i18n;
 
 mod app;
 mod astro;
+mod catalog;
 mod feedback;
 mod missions;
 mod net;
+mod photos;
 mod render;
 mod sats;
 mod settings;

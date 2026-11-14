@@ -2,3 +2,6 @@ target
 /release
 *.log
 tools/.cache
+
+tools/catalog/raw/
+__pycache__/

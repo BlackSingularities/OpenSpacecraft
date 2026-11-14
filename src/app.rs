@@ -36,6 +36,10 @@ pub enum Selection {
     Mission(usize),
     Sat(u32),
     Body(BodyId),
+    /// Statek z katalogu archiwalnego (indeks w `catalog::get().crafts`).
+    Craft(usize),
+    /// Start z katalogu startów (indeks w `catalog::get().launches`).
+    Launch(usize),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
@@ -44,6 +48,7 @@ pub enum Tab {
     Satellites,
     Bodies,
     Launches,
+    Archive,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -75,11 +80,13 @@ pub struct Prefs {
     pub sat_filter: sats::Filter,
     pub kinds: Vec<Kind>,
     pub only_active: bool,
+    /// Lista misji pokazuje też statki z archiwum.
+    pub archive: bool,
 }
 
 impl Default for Prefs {
     fn default() -> Self {
-        Self { layers: Layers::default(), tab: Tab::Missions, catalog_open: true, sat_filter: sats::Filter::default(), kinds: Vec::new(), only_active: false }
+        Self { layers: Layers::default(), tab: Tab::Missions, catalog_open: true, sat_filter: sats::Filter::default(), kinds: Vec::new(), only_active: false, archive: true }
     }
 }
 
@@ -177,6 +184,7 @@ pub struct App {
     pub body_search: String,
     /// Rok przeglądany w zakładce startów (None – rok chwili symulacji).
     pub launch_year: Option<i32>,
+    pub archive_list: Option<(String, Vec<usize>)>,
     /// Zaznaczony start z katalogu (prefiks COSPAR).
     pub launch_sel: Option<String>,
     pub palette: Option<crate::ui::palette::Palette>,
@@ -244,6 +252,7 @@ impl App {
             sat_search: String::new(),
             body_search: String::new(),
             launch_year: None,
+            archive_list: None,
             launch_sel: None,
             palette: None,
             glass: Vec::new(),
@@ -285,6 +294,17 @@ impl App {
             self.clock.playing = std::env::var("OPENSPACECRAFT_PLAY").is_ok();
         } else if let Some(b) = bodies::find(what) {
             self.select_body(b);
+        } else if let Some(c) = what.strip_prefix("craft:") {
+            // np. craft:1977-084A – karta statku z archiwum
+            let cat = crate::catalog::get();
+            if let Some(i) = cat.crafts.iter().position(|x| x.id == c) {
+                self.selection = Selection::Craft(i);
+            }
+        } else if let Some(l) = what.strip_prefix("launch:") {
+            // np. launch:1969-059 – karta startu (oznaczenie COSPAR)
+            if let Some(i) = crate::catalog::get().launch_by_desig(l) {
+                self.selection = Selection::Launch(i);
+            }
         }
         if let Some(d) = std::env::var("OPENSPACECRAFT_DIST").ok().and_then(|d| d.parse::<f64>().ok()) {
             self.cam.dist = d;
