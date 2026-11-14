@@ -59,7 +59,7 @@ fn search(app: &App, q: &str) -> Vec<(i32, Hit)> {
         let arch = crate::catalog::get();
         let mut n = 0;
         for (i, c) in arch.crafts.iter().enumerate() {
-            if c.m.is_some() {
+            if c.parent.is_some() || arch.mission_of_cospar(&c.id).is_some() {
                 continue;
             }
             let s = if c.id.to_lowercase() == q { Some(0) } else { score(&c.name, &q).or_else(|| c.name_pl.as_deref().and_then(|p| score(p, &q))).map(|s| s + 3) };

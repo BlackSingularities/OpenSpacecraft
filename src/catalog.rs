@@ -58,6 +58,12 @@ pub struct Craft {
     pub end_jd: Option<f64>,
     #[serde(skip)]
     pub search: String,
+    /// Statek główny startu, gdy ten obiekt jest tylko jego częścią (człon, odłamek, inny ładunek).
+    #[serde(skip)]
+    pub parent: Option<usize>,
+    /// Liczba pozostałych obiektów startu w archiwum (dla statku głównego).
+    #[serde(skip)]
+    pub parts: usize,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -102,6 +108,7 @@ pub struct Catalog {
     by_launch: HashMap<String, usize>,
     by_desig: HashMap<String, usize>,
     by_norad: HashMap<u32, usize>,
+    mission_of_desig: HashMap<String, String>,
 }
 
 fn load() -> Catalog {
@@ -126,11 +133,46 @@ fn load() -> Catalog {
         l.jd = time::parse(&l.t).unwrap_or(0.0);
     }
     launches.sort_by(|a, b| a.jd.total_cmp(&b.jd));
+    // start = jedna pozycja: statek główny (misja z atlasu, inaczej najniższe oznaczenie) i jego części
+    let mut groups: HashMap<String, Vec<usize>> = HashMap::new();
+    for (i, c) in crafts.iter().enumerate() {
+        if c.id.len() > 8 {
+            groups.entry(c.id[..8].to_string()).or_default().push(i);
+        }
+    }
+    let mut mission_of_desig: HashMap<String, String> = HashMap::new();
+    for (desig, members) in &groups {
+        // główny: misja z atlasu, potem ładunek (nie człon rakiety ani odłamek), potem najniższe oznaczenie
+        let rank = |i: usize| (crafts[i].m.is_none(), is_part(&crafts[i]), crafts[i].id.clone());
+        let main = members.iter().copied().min_by_key(|&i| rank(i));
+        let Some(main) = main else { continue };
+        if let Some(m) = &crafts[main].m {
+            mission_of_desig.insert(desig.clone(), m.clone());
+        }
+        crafts[main].parts = members.len() - 1;
+        for &i in members {
+            if i != main {
+                crafts[i].parent = Some(main);
+                // szukanie po nazwie części znajduje start
+                let extra = format!(" {}", crafts[i].search);
+                crafts[main].search.push_str(&extra);
+            }
+        }
+    }
     let by_mission = crafts.iter().enumerate().filter_map(|(i, c)| c.m.clone().map(|m| (m, i))).collect();
     let by_launch = launches.iter().enumerate().map(|(i, l)| (l.id.clone(), i)).collect();
     let by_desig = launches.iter().enumerate().filter_map(|(i, l)| l.desig.clone().map(|d| (d, i))).collect();
     let by_norad = crafts.iter().enumerate().filter_map(|(i, c)| c.norad.map(|n| (n, i))).collect();
-    Catalog { crafts, launches, pl, by_mission, by_launch, by_desig, by_norad }
+    Catalog { crafts, launches, pl, by_mission, by_launch, by_desig, by_norad, mission_of_desig }
+}
+
+/// Człon rakiety, odłamek albo inny obiekt, który nie jest ładunkiem startu.
+fn is_part(c: &Craft) -> bool {
+    let n = c.name.to_lowercase();
+    n.contains("rocket body") || n.contains("r/b") || n.contains(" deb") || n.contains("debris") || n.contains("stage") || n.contains("sivb") || n.contains("s-ivb") || c.types.iter().any(|t| {
+        let t = t.to_lowercase();
+        t.contains("rocket stage") || t.contains("upper stage") || t.contains("space debris")
+    })
 }
 
 pub fn get() -> &'static Catalog {
@@ -149,6 +191,16 @@ impl Catalog {
 
     pub fn launch(&self, id: &str) -> Option<usize> {
         self.by_launch.get(id).copied()
+    }
+
+    /// Misja z atlasu, do której należy obiekt o oznaczeniu COSPAR (cały start to misja).
+    pub fn mission_of_cospar(&self, cospar: &str) -> Option<&str> {
+        self.mission_of_desig.get(cospar.get(..8)?).map(String::as_str)
+    }
+
+    /// Statek główny startu (on sam, jeśli jest główny).
+    pub fn main_of(&self, i: usize) -> usize {
+        self.crafts[i].parent.unwrap_or(i)
     }
 
     /// Statek o danym numerze NORAD (satelita z katalogu CelesTrak).
@@ -316,6 +368,11 @@ mod tests {
             }
         }
         assert!(c.craft_of_mission("voyager-1").is_some());
+        // start Sputnika 3: głównym obiektem jest satelita, nie człon rakiety
+        let main = |id: &str| c.crafts.iter().position(|x| x.id == id).map(|i| c.crafts[c.main_of(i)].id.clone());
+        assert_eq!(main("1958-004A").as_deref(), Some("1958-004B"));
+        assert_eq!(main("1958-002B").as_deref(), Some("1958-002B"));
+        assert_eq!(c.mission_of_cospar("1969-059B"), Some("apollo-11"));
         assert_eq!(encode("A b/ł.jpg"), "A_b%2F%C5%82.jpg");
     }
 }

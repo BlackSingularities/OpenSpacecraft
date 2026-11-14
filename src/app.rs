@@ -403,13 +403,17 @@ impl App {
         })
     }
 
-    /// Misja, której statkiem jest obiekt o danym numerze NORAD.
+    /// Misja, do której należy obiekt o danym numerze NORAD: jej statek, człon rakiety, odłamek
+    /// albo inny obiekt z tego samego startu.
     pub fn mission_of_norad(&self, norad: u32) -> Option<usize> {
-        let cat = crate::catalog::get();
-        let from_archive = cat.craft_by_norad(norad).and_then(|c| cat.crafts[c].m.as_deref()).and_then(missions::index_of);
-        from_archive
-            .or_else(|| missions::db().missions.iter().position(|m| m.norad == Some(norad)))
-            .filter(|&i| self.mission_norad(i) == Some(norad))
+        if let Some(i) = missions::db().missions.iter().position(|m| m.norad == Some(norad)) {
+            return Some(i);
+        }
+        let intl = self.sats.current().find(norad).map(|o| o.intl.clone()).or_else(|| {
+            let cat = crate::catalog::get();
+            cat.craft_by_norad(norad).map(|c| cat.crafts[c].id.clone())
+        })?;
+        crate::catalog::get().mission_of_cospar(&intl).and_then(missions::index_of)
     }
 
     /// Położenie misji w chwili `jd` i jego źródło. Do wejścia na orbitę – model startu,
@@ -453,6 +457,11 @@ impl App {
     /// na orbicie (w chwili, gdy krążył), w przeciwnym razie kartę archiwalną.
     pub fn open_craft(&mut self, i: usize) {
         let c = &crate::catalog::get().crafts[i];
+        if let Some(mi) = crate::catalog::get().mission_of_cospar(&c.id).and_then(missions::index_of) {
+            self.select_mission(mi, false);
+            self.scroll_to_selected = true;
+            return;
+        }
         let sat = c.norad.and_then(|n| self.sats.current().find(n).map(|o| (n, o.launch_jd, o.decay_jd)));
         match sat {
             Some((n, launch, decay)) => {
@@ -465,6 +474,14 @@ impl App {
             }
             None => self.selection = Selection::Craft(i),
         }
+    }
+
+    /// Pokazuje sam obiekt (np. człon rakiety z listy części misji), bez przejścia do misji.
+    pub fn select_part(&mut self, norad: u32) {
+        self.selection = Selection::Sat(norad);
+        let cat = self.sats.current();
+        let d = cat.find(norad).map(|o| if o.class == sats::OrbitClass::Leo { 2.5e6 } else { 2.5e7 }).unwrap_or(2.5e6);
+        self.set_focus(Focus::Sat(norad), Some(d));
     }
 
     pub fn select_sat(&mut self, norad: u32) {

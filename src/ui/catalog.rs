@@ -106,8 +106,8 @@ fn missions_tab(app: &mut App, ui: &mut egui::Ui) {
         if with_archive {
             let arch = crate::catalog::get();
             for (i, c) in arch.crafts.iter().enumerate() {
-                if c.m.is_some() {
-                    continue; // ten statek jest już misją z trasą 3D
+                if c.parent.is_some() || arch.mission_of_cospar(&c.id).is_some() {
+                    continue; // część startu albo start misji z trasą 3D – są pod jedną pozycją
                 }
                 if app.prefs.only_active && !(c.jd.is_some_and(|a| a <= jd) && c.end_jd.is_none_or(|e| e >= jd) && c.end_jd.is_some()) {
                     continue;

@@ -34,6 +34,9 @@ pub fn craft_row(ui: &mut egui::Ui, c: &Craft, sel: bool) -> egui::Response {
     if !country.is_empty() {
         sub += &format!(" · {country}");
     }
+    if c.parts > 0 {
+        sub += &tf!(" · +{} części", c.parts);
+    }
     pc.text(rect.left_bottom() + egui::vec2(40.0, -7.0), egui::Align2::LEFT_BOTTOM, sub, egui::FontId::proportional(11.5), theme::paper_3());
     resp
 }
@@ -143,7 +146,7 @@ pub fn launch_objects(app: &mut App, ui: &mut egui::Ui, desig: &str) {
     let now = time::now();
     let count = |k: crate::sats::ObjType| objs.iter().filter(|o| o.kind == k).count();
     let in_orbit_now = objs.iter().filter(|o| o.decay_jd.is_none()).count();
-    section(ui, &tf!("Obiekty z tego startu ({})", objs.len()));
+    section(ui, &tf!("Części startu i pozostałości ({})", objs.len()));
     ui.add(egui::Label::new(
         RichText::new(tf!(
             "{} ładunków · {} członów rakiety · {} odłamków · {} wciąż na orbicie",
@@ -192,13 +195,27 @@ pub fn launch_objects(app: &mut App, ui: &mut egui::Ui, desig: &str) {
     }
     if let Some((n, t)) = pick {
         app.clock.jd = t;
-        app.select_sat(n);
+        app.select_part(n);
     }
 }
 
-/// Górna część karty satelity: zdjęcie i krótki opis z archiwum.
-pub fn sat_extra(_app: &mut App, ui: &mut egui::Ui, norad: u32) {
+/// Górna część karty satelity: do czego należy (misja, start), zdjęcie i krótki opis z archiwum.
+pub fn sat_extra(app: &mut App, ui: &mut egui::Ui, norad: u32) {
     let cat = catalog::get();
+    if let Some(mi) = app.mission_of_norad(norad) {
+        let m = &missions::db().missions[mi];
+        if ui.add(theme::primary(&theme::ic(theme::icon::ARROW_BEND_UP_LEFT, &tf!("Część misji {}", m.name)))).clicked() {
+            app.select_mission(mi, false);
+            app.scroll_to_selected = true;
+        }
+    } else if let Some(i) = cat.craft_by_norad(norad) {
+        if let Some(main) = cat.crafts[i].parent {
+            let mc = &cat.crafts[main];
+            if ui.button(theme::ic(theme::icon::ARROW_BEND_UP_LEFT, &tf!("Część startu {}", cat.craft_name(mc)))).clicked() {
+                app.open_craft(main);
+            }
+        }
+    }
     let Some(i) = cat.craft_by_norad(norad) else { return };
     let c = &cat.crafts[i];
     if let Some(url) = c.photo_url() {
