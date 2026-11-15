@@ -96,6 +96,10 @@ pub struct MissionFilter {
     pub decades: Vec<i32>,
     /// 0 – od najstarszej, 1 – od najnowszej, 2 – wg nazwy.
     pub sort: u8,
+    /// Widok okna: 0 – lista, 1 – oś czasu, 2 – statystyki, 3 – porównanie.
+    pub view: u8,
+    /// Misje porównywane obok siebie (identyfikatory).
+    pub cmp: Vec<String>,
 }
 
 /// Rozwijane menu na górnym pasku.
@@ -249,6 +253,15 @@ pub struct App {
     pub pending_focus: Option<usize>,
     /// Odległość kamery narzucona przez scenę startową (zrzuty).
     pub scene_dist: Option<f64>,
+    /// Kamera reżyserska: sama prowadzi odtwarzanie misji (zbliżenia i tempo przy wydarzeniach).
+    pub director: bool,
+    /// Ręczne sterowanie kamerą wstrzymuje reżysera na chwilę [s].
+    pub director_hold: f64,
+    /// Nadchodzące starty (Launch Library 2) i zaznaczony z nich.
+    pub upcoming: crate::upcoming::Loader,
+    pub upcoming_sel: Option<usize>,
+    /// Przeloty zaznaczonego satelity (klucz: obiekt, godzina, miejsce).
+    pub passes: Option<((u32, i64, u64, u64), Vec<crate::passes::Pass>)>,
 }
 
 const PREFS_KEY: &str = "openspacecraft-1";
@@ -316,6 +329,11 @@ impl App {
             scroll_to_selected: false,
             pending_focus: None,
             scene_dist: None,
+            director: false,
+            director_hold: 0.0,
+            upcoming: Default::default(),
+            upcoming_sel: None,
+            passes: None,
         };
         app.tour = if app.settings.tour_done || app.capture.is_some() { None } else { Some(0) };
         // scena startowa (także do zrzutów): OPENSPACECRAFT_SCENE=misja@data

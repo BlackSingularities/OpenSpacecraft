@@ -236,6 +236,7 @@ impl App {
             }
         }
         self.advance_clock(&ctx);
+        self.director(&ctx);
         let rect = ui.max_rect();
         self.view_rect = rect;
         let resp = ui.interact(rect, egui::Id::new("widok-3d"), egui::Sense::click_and_drag());
@@ -260,12 +261,14 @@ impl App {
         // sterowanie kamerą (w trybie zrzutu mysz nie działa)
         let live_input = self.capture.is_none();
         if live_input && (resp.dragged_by(egui::PointerButton::Primary) || resp.dragged_by(egui::PointerButton::Secondary)) {
+            self.director_hold = 6.0;
             let d = resp.drag_delta();
             self.cam.rotate(-d.x as f64 * 0.006, d.y as f64 * 0.006);
         }
         if resp.hovered() && live_input {
             let scroll = ui.input(|i| i.smooth_scroll_delta.y + i.zoom_delta().ln() * 300.0);
             if scroll.abs() > 0.01 {
+                self.director_hold = 8.0;
                 let min = self.min_dist();
                 self.cam.zoom((-scroll as f64 * 0.0028).exp(), min, 3.0e13);
             }
@@ -526,27 +529,31 @@ impl App {
                 }
             }
         }
-        // model 3D zaznaczonego statku (NASA 3D Resources), gdy kamera jest blisko
+        // model 3D zaznaczonego statku (rakieta przy starcie albo model NASA 3D Resources), gdy kamera jest blisko
         let mut crafts: Vec<crate::render::CraftDraw> = Vec::new();
         let mut model_close: Option<usize> = None;
         if let Some(i) = sel_mission {
-            if let (Some(mr), Some(&(_, p))) = (crate::models::for_mission(&db.missions[i].id, jd), mission_marks.iter().find(|(k, _)| *k == i)) {
+            if let Some(&(_, p)) = mission_marks.iter().find(|(k, _)| *k == i) {
                 let d = (p - eye).length();
-                let size = mr.size_m as f64;
-                if d < size * 400.0 {
-                    // oś Z modelu prostopadle do ekliptyki, przód (−Y) wzdłuż prędkości
-                    let h = 20.0 / 86_400.0;
-                    let vel = match (self.mission_position(i, jd + h), self.mission_position(i, jd - h)) {
-                        (Some((a, _)), Some((b, _))) => a - b,
-                        _ => DVec3::X,
-                    };
-                    let fwd = Vec3::from(v3(vel.normalize_or(DVec3::X)));
-                    let side = fwd.cross(Vec3::Z).try_normalize().unwrap_or(Vec3::X);
-                    let up = side.cross(fwd).normalize_or(Vec3::Z);
-                    let rot = Mat3::from_cols(side, -fwd, up);
-                    crafts.push(crate::render::CraftDraw { key: mr.url(), center: Vec3::from(v3(p - eye)), rot, scale: mr.size_m });
-                    if d < size * 60.0 && crate::models::get(&mr.url(), &ctx).is_some() {
-                        model_close = Some(i);
+                let rocket = crate::rocket::plan(i).filter(|_| crate::rocket::active(i, jd));
+                let model = if rocket.is_none() { crate::models::for_mission(&db.missions[i].id, jd) } else { None };
+                let size = rocket.map(|r| r.length_m).or(model.map(|m| m.size_m)).unwrap_or(0.0) as f64;
+                if size > 0.0 && d < size * 400.0 {
+                    let rot = self.craft_rotation(i, jd, p);
+                    let fwd = -rot.y_axis;
+                    if let Some(r) = rocket {
+                        for dr in r.draws(jd) {
+                            let off = rot * (dr.offset + dr.drift) - fwd * dr.back_m;
+                            crafts.push(crate::render::CraftDraw { key: dr.key, center: Vec3::from(v3(p - eye)) + off, rot: rot * Mat3::from_rotation_x(dr.tumble), scale: 1.0 });
+                        }
+                        if d < size * 60.0 {
+                            model_close = Some(i);
+                        }
+                    } else if let Some(mr) = model {
+                        crafts.push(crate::render::CraftDraw { key: mr.url(), center: Vec3::from(v3(p - eye)), rot, scale: mr.size_m });
+                        if d < size * 60.0 && crate::models::get(&mr.url(), &ctx).is_some() {
+                            model_close = Some(i);
+                        }
                     }
                 }
             }
@@ -724,6 +731,9 @@ impl App {
             if let Some(s) = sel_mission.and_then(|i| db.missions[i].site()) {
                 sites.push((s.name.clone(), s.lat, s.lon, 0));
             }
+            if let Some(u) = self.upcoming_sel.and_then(|k| self.upcoming.get(&ctx).and_then(|v| v.get(k).cloned())) {
+                sites.push((format!("{} · {}", u.pad, crate::upcoming::countdown(u.jd, time::now())), u.lat, u.lon, 0));
+            }
             if self.prefs.tab == crate::app::Tab::Launches && self.prefs.catalog_open {
                 let y = self.launch_year.unwrap_or_else(|| time::year(jd));
                 let (a, b) = (time::year_start(y), time::year_start(y + 1));
@@ -850,6 +860,77 @@ impl App {
             egui::FontId::proportional(12.0),
             theme::paper_3(),
         );
+    }
+
+    /// Kamera reżyserska: tempo zegara zależy od odległości do najbliższego wydarzenia (zwalnia przy
+    /// odłączeniach, lądowaniach, manewrach, przyspiesza w rejsie), a kamera zbliża się do statku.
+    fn director(&mut self, ctx: &egui::Context) {
+        if !self.director {
+            return;
+        }
+        let Selection::Mission(i) = self.selection else {
+            self.director = false;
+            return;
+        };
+        let m = &missions::db().missions[i];
+        let jd = self.clock.jd;
+        if m.end_jd.is_some_and(|e| jd >= e) || jd >= JD_MAX - 1.0 {
+            self.director = false;
+            self.clock.rate = crate::app::default_rate(m);
+            return;
+        }
+        let dt = ctx.input(|i| i.stable_dt).clamp(0.001, 0.1) as f64;
+        self.director_hold = (self.director_hold - dt).max(0.0);
+        self.clock.playing = true;
+        if self.focus != Focus::Mission(i) && self.trajs.get(i).is_some() && self.mission_position(i, jd).is_some() {
+            let d = self.mission_view_dist(i);
+            self.set_focus(Focus::Mission(i), Some(d));
+        }
+        let start = m.launch_jd.min(jd);
+        let next = m.events.iter().find(|e| e.jd > jd).map(|e| (e.jd - jd) * 86_400.0).unwrap_or_else(|| m.end_jd.map(|e| (e - jd) * 86_400.0).unwrap_or(3.0e8));
+        let prev = m.events.iter().rev().find(|e| e.jd <= jd).map(|e| (jd - e.jd) * 86_400.0).unwrap_or((jd - start) * 86_400.0 + 1.0);
+        // do następnego wydarzenia w ok. 6 s, po wydarzeniu chwilę wolniej
+        let target = (next / 6.0).min(prev.max(6.0) * 0.6).clamp(3.0, 4.0e6);
+        let cur = self.clock.rate.abs().max(1.0);
+        let k = 1.0 - (-dt * 2.5).exp();
+        self.clock.rate = (cur.ln() + (target.ln() - cur.ln()) * k).exp();
+        // odległość kamery: blisko przy wydarzeniach (rakieta, model statku), dalej w rejsie
+        if self.director_hold <= 0.0 && !self.cam.animating() && self.focus == Focus::Mission(i) {
+            let size = crate::rocket::plan(i).filter(|_| crate::rocket::active(i, jd)).map(|r| r.length_m as f64).or_else(|| crate::models::for_mission(&m.id, jd).map(|x| x.size_m as f64));
+            let close = next.min(prev) < 120.0;
+            let want = match size {
+                Some(s) if close || crate::rocket::active(i, jd) => s * 4.0,
+                _ => self.mission_view_dist(i) * if close { 0.5 } else { 1.0 },
+            }
+            .max(self.min_dist());
+            let k = 1.0 - (-dt * 1.2).exp();
+            self.cam.dist = (self.cam.dist.ln() + (want.ln() - self.cam.dist.ln()) * k).exp();
+            self.cam.yaw += dt * 0.04;
+        }
+        ctx.request_repaint();
+    }
+
+    /// Orientacja modelu statku: przód (−Y modelu) wzdłuż prędkości względem najbliższego ciała,
+    /// a tuż po starcie (i przy małej prędkości) – pionowo w górę od powierzchni.
+    pub fn craft_rotation(&self, i: usize, jd: f64, p: DVec3) -> Mat3 {
+        let near = crate::missions::traj::nearest_body(p, jd);
+        let bp = bodies::position(near, jd);
+        let h = 2.0 / 86_400.0;
+        let vel = match (self.mission_position(i, jd + h), self.mission_position(i, jd - h)) {
+            (Some((a, _)), Some((b, _))) => (a - b) / (2.0 * h * 86_400.0) - bodies::velocity(near, jd),
+            _ => DVec3::ZERO,
+        };
+        let up = (p - bp).normalize_or(DVec3::Z);
+        let launch = missions::db().missions[i].launch_jd;
+        let t = (jd - launch) * 86_400.0;
+        // pierwsze sekundy: pionowo; potem płynnie w kierunek lotu
+        let w = smoothstep(5.0, 40.0, t) * smoothstep(2.0, 50.0, vel.length());
+        let dir = if vel.length() > 0.5 { vel.normalize() } else { up };
+        let fwd = (up * (1.0 - w) + dir * w).normalize_or(up);
+        let fwd = Vec3::from(v3(fwd));
+        let side = fwd.cross(Vec3::Z).try_normalize().unwrap_or(Vec3::X);
+        let top = side.cross(fwd).normalize_or(Vec3::Z);
+        Mat3::from_cols(side, -fwd, top)
     }
 
     /// Ciało związane z zaznaczoną misją (cel lotu) – pokazywane nawet przy wyłączonej warstwie.

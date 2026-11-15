@@ -279,6 +279,31 @@ fn list(app: &mut App, ui: &mut egui::Ui, height: f32) {
     }
     let list: Vec<Entry> = app.archive_list.as_ref().map(|x| x.1.iter().map(|&p| Entry::unpack(p)).collect()).unwrap_or_default();
     let n3d = list.iter().filter(|e| matches!(e, Entry::Mission(_))).count();
+    // widok: lista, oś czasu, statystyki, porównanie
+    ui.horizontal(|ui| {
+        for (code, icon, label) in [(0u8, theme::icon::LIST_BULLETS, "Lista"), (1, theme::icon::CHART_BAR_HORIZONTAL, "Oś czasu"), (2, theme::icon::CHART_PIE_SLICE, "Statystyki"), (3, theme::icon::SCALES, "Porównanie")] {
+            if ui.selectable_label(app.prefs.mf.view == code, format!("{icon}  {}", tr(label))).clicked() {
+                app.prefs.mf.view = code;
+            }
+        }
+    });
+    ui.add_space(2.0);
+    if app.prefs.mf.view != 0 {
+        let ms: Vec<usize> = list.iter().filter_map(|e| if let Entry::Mission(i) = e { Some(*i) } else { None }).collect();
+        ui.label(RichText::new(tf!("{} misji z przebiegiem 3D", ms.len())).strong());
+        ui.separator();
+        if ms.is_empty() && app.prefs.mf.view != 3 {
+            ui.add_space(20.0);
+            ui.label(RichText::new(tr("Żadna misja nie pasuje do filtrów.")).color(theme::paper_3()));
+            return;
+        }
+        match app.prefs.mf.view {
+            1 => super::mission_views::timeline(app, ui, &ms, height - 60.0),
+            2 => super::mission_views::stats(ui, &ms, height - 60.0),
+            _ => super::mission_views::compare(app, ui, &ms, height - 60.0),
+        }
+        return;
+    }
     ui.horizontal(|ui| {
         ui.label(RichText::new(tf!("{} misji z przebiegiem 3D", n3d)).strong());
         if list.len() > n3d {

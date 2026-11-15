@@ -77,7 +77,7 @@ const DATA_SOURCES: &[(&str, &str, &str, &str, &str)] = &[
     ("CelesTrak", "https://celestrak.org/", "SATCAT, elementy orbit GP (SGP4)", "publiczne", "https://celestrak.org/webmaster.php"),
     ("Wikidata", "https://www.wikidata.org/", "archiwum: nazwy, daty, operatorzy, masa, zdjęcia", "CC0 1.0", "https://creativecommons.org/publicdomain/zero/1.0/"),
     ("NASA NSSDCA Master Catalog", "https://nssdc.gsfc.nasa.gov/nmc/", "archiwum: pełne opisy statków", "domena publiczna", "https://www.nasa.gov/nasa-brand-center/images-and-media/"),
-    ("Launch Library 2 (The Space Devs)", "https://thespacedevs.com/llapi", "historia startów, opisy i zdjęcia startów", "z podaniem źródła", "https://thespacedevs.com/"),
+    ("Launch Library 2 (The Space Devs)", "https://thespacedevs.com/llapi", "historia startów, opisy i zdjęcia startów; nadchodzące starty pobierane na bieżąco", "z podaniem źródła", "https://thespacedevs.com/"),
     ("Wikimedia Commons", "https://commons.wikimedia.org/", "zdjęcia statków (autor i licencja przy każdym)", "licencje wolne (różne)", "https://commons.wikimedia.org/wiki/Commons:Licensing"),
     ("Wikipedia", "https://www.wikipedia.org/", "odnośniki do artykułów", "CC BY-SA 4.0", "https://creativecommons.org/licenses/by-sa/4.0/"),
     ("NASA 3D Resources", "https://github.com/nasa/NASA-3D-Resources", "modele 3D statków (pobierane przy zbliżeniu)", "zasady NASA dla mediów", "https://www.nasa.gov/nasa-brand-center/images-and-media/"),

@@ -99,6 +99,34 @@ fn mission(app: &mut App, ui: &mut egui::Ui, i: usize) {
             app.clock.jd = m.end_jd.unwrap_or(jd) - 1.0 / 24.0;
         }
     });
+    ui.horizontal(|ui| {
+        let on = app.director;
+        let b = egui::Button::new(theme::ic(theme::icon::FILM_SLATE, "Kamera reżyserska")).selected(on);
+        if ui.add(b).on_hover_text(tr("Program sam prowadzi odtwarzanie: zwalnia i zbliża kamerę przy odłączeniach, lądowaniach i manewrach, przyspiesza w rejsie. Przeciągnięcie albo przybliżenie myszą wstrzymuje go na chwilę.")).clicked() {
+            app.director = !on;
+            if app.director {
+                if jd < m.launch_jd || m.end_jd.is_some_and(|e| jd >= e) {
+                    app.select_mission(i, true);
+                }
+                app.director_hold = 0.0;
+            } else {
+                app.clock.rate = crate::app::default_rate(m);
+            }
+        }
+        if let Some(r) = crate::rocket::plan(i) {
+            if jd <= r.end_jd && ui.button(theme::ic(theme::icon::ROCKET, "Rakieta z bliska")).on_hover_text(tr("Start z bliska: człony i osłony odpadają w chwilach z przebiegu misji")).clicked() {
+                if jd < m.launch_jd || jd > r.end_jd {
+                    app.select_mission(i, true);
+                }
+                app.clock.jd = app.clock.jd.max(m.launch_jd - 2.0 / 86_400.0);
+                app.clock.rate = 5.0;
+                app.clock.playing = true;
+                app.pending_focus = None;
+                app.scene_dist = None;
+                app.set_focus(Focus::Mission(i), Some(r.length_m as f64 * 3.0));
+            }
+        }
+    });
     // model 3D statku (NASA 3D Resources)
     if crate::models::has_model(&m.id) {
         ui.horizontal_wrapped(|ui| {
@@ -141,6 +169,14 @@ fn mission(app: &mut App, ui: &mut egui::Ui, i: usize) {
                     ui.add(egui::Label::new(RichText::new(tf!("Dalej: {} (za {})", n.text(), time::fmt_duration(n.jd - jd))).small().color(theme::paper_2())).wrap());
                 });
             }
+            if let Some(r) = crate::rocket::plan(i) {
+                let falling = r.falling_parts(jd);
+                if !falling.is_empty() {
+                    let names: Vec<&str> = falling.iter().map(|&k| m.parts[k].name()).collect();
+                    ui.label(RichText::new(format!("{}  {}", theme::icon::ARROW_FAT_LINES_DOWN, tf!("Odpada: {}", names.join(", ")))).small().color(theme::WARN));
+                }
+            }
+            super::sky::telemetry(app, ui, i);
         }
     }
     if !m.parts.is_empty() {
@@ -212,6 +248,11 @@ fn mission(app: &mut App, ui: &mut egui::Ui, i: usize) {
         }
     }
 
+    if let Some(n) = app.mission_norad(i) {
+        if app.mission_handed_off(i, jd) {
+            super::sky::sat_tools(app, ui, n);
+        }
+    }
     section(ui, "Dane misji");
     fact_mono(ui, "Start", time::fmt_datetime(m.launch_jd));
     if let Some(e) = m.end_jd {
@@ -331,6 +372,7 @@ fn satellite(app: &mut App, ui: &mut egui::Ui, norad: u32) {
             ui.label(RichText::new(tr("Obiektu nie było w tej chwili na orbicie.")).color(theme::paper_3()));
         }
     }
+    super::sky::sat_tools(app, ui, norad);
     section(ui, "Katalog");
     fact_mono(ui, "NORAD", o.norad.to_string());
     if !o.intl.is_empty() {

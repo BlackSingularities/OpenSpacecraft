@@ -1,7 +1,8 @@
 //! Modele 3D statków z NASA 3D Resources (github.com/nasa/NASA-3D-Resources, pliki GLB).
 //! Pobierane w tle przy pierwszym zbliżeniu, z pamięcią podręczną na dysku
 //! (`%LOCALAPPDATA%\OpenSpacecraft\cache\models`). Czytnik GLB jest własny i minimalny:
-//! węzły z przekształceniami, trójkąty, barwa bazowa materiału.
+//! węzły z przekształceniami, trójkąty, barwa bazowa materiału i jej tekstura (barwy tekstury
+//! zapisywane w ścianach – bez osobnego przesyłania obrazów na kartę).
 
 use std::collections::HashMap;
 use std::io::Read;
@@ -125,6 +126,16 @@ fn store() -> &'static Mutex<HashMap<String, State>> {
     S.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+/// Wstawia gotową siatkę (np. rakietę złożoną w programie) pod danym kluczem.
+pub fn put(key: &str, mesh: Mesh) {
+    store().lock().unwrap_or_else(|e| e.into_inner()).insert(key.to_string(), State::Ready(Arc::new(mesh)));
+}
+
+/// Czy pod kluczem jest już siatka.
+pub fn ready(key: &str) -> bool {
+    matches!(store().lock().ok().and_then(|s| s.get(key).cloned()), Some(State::Ready(_)))
+}
+
 /// Siatka modelu albo `None` (pobieranie trwa albo się nie udało); pierwsze wywołanie zaczyna pobieranie.
 pub fn get(url: &str, ctx: &eframe::egui::Context) -> Option<Arc<Mesh>> {
     let mut s = store().lock().unwrap_or_else(|e| e.into_inner());
@@ -132,6 +143,9 @@ pub fn get(url: &str, ctx: &eframe::egui::Context) -> Option<Arc<Mesh>> {
         Some(State::Ready(m)) => return Some(m.clone()),
         Some(_) => return None,
         None => {}
+    }
+    if !url.starts_with("https://") {
+        return None;
     }
     s.insert(url.to_string(), State::Loading);
     let (url, ctx) = (url.to_string(), ctx.clone());
@@ -231,14 +245,90 @@ fn node_matrix(n: &Value) -> Mat4 {
     Mat4::from_scale_rotation_translation(Vec3::new(s[0], s[1], s[2]), Quat::from_xyzw(r[0], r[1], r[2], r[3]).normalize(), Vec3::new(t[0], t[1], t[2]))
 }
 
-/// Barwa materiału (liniowa). Tekstur nie czytamy: przy białej barwie z teksturą – jasna szarość.
+/// Tekstura barwy bazowej materiału: (indeks obrazu, numer zestawu UV).
+fn material_texture(j: &Value, mat: Option<u64>) -> Option<(usize, u64)> {
+    let t = j.get("materials")?.get(mat? as usize)?.get("pbrMetallicRoughness")?.get("baseColorTexture")?;
+    let tex = j.get("textures")?.get(t.get("index")?.as_u64()? as usize)?;
+    let src = tex.get("source").and_then(Value::as_u64)?;
+    Some((src as usize, t.get("texCoord").and_then(Value::as_u64).unwrap_or(0)))
+}
+
+/// Obraz wbudowany w GLB (widok bufora), zdekodowany i zmniejszony do rozsądnego rozmiaru.
+fn decode_image(j: &Value, bin: &[u8], img: usize) -> Option<image::RgbaImage> {
+    let im = j.get("images")?.get(img)?;
+    let view = j.get("bufferViews")?.get(im.get("bufferView")?.as_u64()? as usize)?;
+    let start = num(view, "byteOffset");
+    let data = bin.get(start..start + num(view, "byteLength"))?;
+    let i = image::load_from_memory(data).ok()?;
+    let i = if i.width().max(i.height()) > 1024 { i.thumbnail(1024, 1024) } else { i };
+    Some(i.to_rgba8())
+}
+
+/// Średnia barwa tekstury w otoczeniu punktu UV (liniowa, z powtarzaniem).
+fn sample(img: &image::RgbaImage, u: f32, v: f32) -> [f32; 3] {
+    let (w, h) = (img.width() as f32, img.height() as f32);
+    let mut acc = [0.0f32; 3];
+    for (du, dv) in [(0.0, 0.0), (1.5, 0.0), (-1.5, 0.0), (0.0, 1.5), (0.0, -1.5)] {
+        let x = (u.rem_euclid(1.0) * w + du).rem_euclid(w) as u32;
+        let y = (v.rem_euclid(1.0) * h + dv).rem_euclid(h) as u32;
+        let p = img.get_pixel(x.min(img.width() - 1), y.min(img.height() - 1));
+        for (c, a) in acc.iter_mut().enumerate() {
+            *a += (p[c] as f32 / 255.0).powf(2.2);
+        }
+    }
+    acc.map(|a| a / 5.0)
+}
+
+/// Współrzędne UV wierzchołków (float albo znormalizowane u8/u16).
+fn read_uv(j: &Value, bin: &[u8], acc: usize) -> Option<Vec<[f32; 2]>> {
+    let (data, off, stride, count, comp) = accessor(j, bin, acc)?;
+    let mut out = Vec::with_capacity(count);
+    for k in 0..count {
+        let o = off + k * stride;
+        let uv = match comp {
+            5126 => [f32_at(data, o)?, f32_at(data, o + 4)?],
+            5123 => [u16::from_le_bytes([*data.get(o)?, *data.get(o + 1)?]) as f32 / 65535.0, u16::from_le_bytes([*data.get(o + 2)?, *data.get(o + 3)?]) as f32 / 65535.0],
+            5121 => [*data.get(o)? as f32 / 255.0, *data.get(o + 1)? as f32 / 255.0],
+            _ => return None,
+        };
+        out.push(uv);
+    }
+    Some(out)
+}
+
+/// Indeksy trójkątów prymitywu (albo kolejne wierzchołki, gdy indeksów brak).
+fn read_indices(j: &Value, bin: &[u8], prim: &Value, n: usize) -> Vec<u32> {
+    match prim.get("indices").and_then(Value::as_u64).and_then(|ia| accessor(j, bin, ia as usize)) {
+        Some((data, off, stride, count, comp)) => (0..count)
+            .map(|k| {
+                let o = off + k * stride;
+                match comp {
+                    5121 => data.get(o).map(|v| *v as u32),
+                    5123 => data.get(o..o + 2).map(|v| u16::from_le_bytes([v[0], v[1]]) as u32),
+                    _ => u32_at(data, o),
+                }
+                .unwrap_or(0)
+            })
+            .collect(),
+        None => (0..n as u32).collect(),
+    }
+}
+
+/// Barwa materiału (liniowa). Przy teksturze (której nie da się odczytać) i białej barwie – jasna szarość.
 fn material_color(j: &Value, mat: Option<u64>) -> [f32; 3] {
+    material_factor(j, mat, false)
+}
+
+/// Barwa bazowa materiału; `raw` – bez zastępowania bieli przy teksturze (mnożnik tekstury).
+fn material_factor(j: &Value, mat: Option<u64>, raw: bool) -> [f32; 3] {
     let Some(m) = mat.and_then(|i| j.get("materials")?.get(i as usize)) else { return [0.72, 0.72, 0.74] };
     let pbr = m.get("pbrMetallicRoughness");
     let f: Vec<f32> = pbr.and_then(|p| p.get("baseColorFactor")).and_then(Value::as_array).map(|a| a.iter().map(|x| x.as_f64().unwrap_or(1.0) as f32).collect()).unwrap_or_else(|| vec![1.0, 1.0, 1.0, 1.0]);
     let textured = pbr.is_some_and(|p| p.get("baseColorTexture").is_some());
     let c = [f.first().copied().unwrap_or(1.0), f.get(1).copied().unwrap_or(1.0), f.get(2).copied().unwrap_or(1.0)];
-    if textured && c.iter().all(|x| *x > 0.95) {
+    if raw {
+        c
+    } else if textured && c.iter().all(|x| *x > 0.95) {
         [0.66, 0.66, 0.68]
     } else {
         [c[0].clamp(0.03, 1.0), c[1].clamp(0.03, 1.0), c[2].clamp(0.03, 1.0)]
@@ -267,6 +357,7 @@ pub fn parse_glb(b: &[u8]) -> Result<Mesh, String> {
         .unwrap_or_else(|| (0..nodes.len()).collect());
     let mut verts: Vec<[f32; 6]> = Vec::new();
     let mut idx: Vec<u32> = Vec::new();
+    let mut images: HashMap<usize, Option<image::RgbaImage>> = HashMap::new();
     let mut stack: Vec<(usize, Mat4, u32)> = roots.into_iter().map(|r| (r, Mat4::IDENTITY, 0)).collect();
     while let Some((ni, parent, depth)) = stack.pop() {
         let Some(n) = nodes.get(ni) else { continue };
@@ -289,7 +380,51 @@ pub fn parse_glb(b: &[u8]) -> Result<Mesh, String> {
             if comp != 5126 {
                 continue;
             }
-            let color = material_color(&j, prim.get("material").and_then(Value::as_u64));
+            let mat = prim.get("material").and_then(Value::as_u64);
+            // tekstura: barwa każdej ściany z tekstury (średnia w narożnikach i środku trójkąta)
+            let tex = material_texture(&j, mat).and_then(|(img, set)| {
+                let uv = prim.get("attributes")?.get(format!("TEXCOORD_{set}"))?.as_u64()?;
+                let uv = read_uv(&j, bin, uv as usize)?;
+                let im = images.entry(img).or_insert_with(|| decode_image(&j, bin, img));
+                im.as_ref().map(|_| (img, uv))
+            });
+            if let Some((img, uv)) = tex {
+                let factor = material_factor(&j, mat, true);
+                let Some(Some(im)) = images.get(&img) else { continue };
+                let mut pos: Vec<Vec3> = Vec::with_capacity(count);
+                for k in 0..count {
+                    let o = off + k * stride;
+                    let (Some(x), Some(y), Some(z)) = (f32_at(data, o), f32_at(data, o + 4), f32_at(data, o + 8)) else { break };
+                    pos.push((mtx * Vec4::new(x, y, z, 1.0)).truncate());
+                }
+                for t in read_indices(&j, bin, prim, pos.len()).chunks_exact(3) {
+                    let (Some(a), Some(b), Some(c)) = (pos.get(t[0] as usize), pos.get(t[1] as usize), pos.get(t[2] as usize)) else { continue };
+                    let col = match (uv.get(t[0] as usize), uv.get(t[1] as usize), uv.get(t[2] as usize)) {
+                        (Some(ua), Some(ub), Some(uc)) => {
+                            let m = [(ua[0] + ub[0] + uc[0]) / 3.0, (ua[1] + ub[1] + uc[1]) / 3.0];
+                            let mut acc = [0.0f32; 3];
+                            for q in [*ua, *ub, *uc, m, m] {
+                                let s = sample(im, q[0], q[1]);
+                                for i in 0..3 {
+                                    acc[i] += s[i] / 5.0;
+                                }
+                            }
+                            [0, 1, 2].map(|i| (acc[i] * factor[i]).clamp(0.02, 1.0))
+                        }
+                        _ => factor,
+                    };
+                    let base = verts.len() as u32;
+                    for p in [a, b, c] {
+                        verts.push([p.x, p.y, p.z, col[0], col[1], col[2]]);
+                    }
+                    idx.extend([base, base + 1, base + 2]);
+                }
+                if verts.len() > 3_000_000 {
+                    break;
+                }
+                continue;
+            }
+            let color = material_color(&j, mat);
             let base = verts.len() as u32;
             for k in 0..count {
                 let o = off + k * stride;
