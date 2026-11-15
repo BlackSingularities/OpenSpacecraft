@@ -13,6 +13,18 @@ pub fn windows(app: &mut App, ctx: &egui::Context) {
     tour(app, ctx);
 }
 
+/// Gotowe miejsca obserwatora.
+const HOME_PRESETS: &[(&str, f64, f64)] = &[
+    ("Warszawa", 52.23, 21.01),
+    ("Kraków", 50.06, 19.94),
+    ("Gdańsk", 54.35, 18.65),
+    ("Wrocław", 51.11, 17.03),
+    ("Poznań", 52.41, 16.93),
+    ("Londyn", 51.51, -0.13),
+    ("Nowy Jork", 40.71, -74.01),
+    ("Tokio", 35.68, 139.69),
+];
+
 fn settings(app: &mut App, ctx: &egui::Context) {
     if !app.settings_open {
         return;
@@ -30,6 +42,34 @@ fn settings(app: &mut App, ctx: &egui::Context) {
                 if ui.selectable_label(cur == l.code, l.name).clicked() {
                     app.settings.lang = l.code.to_string();
                     i18n::set(l.code);
+                    changed = true;
+                }
+            }
+        });
+        ui.add_space(6.0);
+        ui.label(theme::kicker("Moje miejsce (przeloty satelitów)"));
+        ui.horizontal(|ui| {
+            if ui.add(egui::TextEdit::singleline(&mut app.settings.home_name).desired_width(140.0)).changed() {
+                changed = true;
+            }
+            ui.label(tr("szer."));
+            if ui.add(egui::DragValue::new(&mut app.settings.home_lat).range(-90.0..=90.0).speed(0.05).fixed_decimals(2).suffix("°")).changed() {
+                changed = true;
+                app.passes = None;
+            }
+            ui.label(tr("dł."));
+            if ui.add(egui::DragValue::new(&mut app.settings.home_lon).range(-180.0..=180.0).speed(0.05).fixed_decimals(2).suffix("°")).changed() {
+                changed = true;
+                app.passes = None;
+            }
+        });
+        ui.horizontal_wrapped(|ui| {
+            for (n, la, lo) in HOME_PRESETS {
+                if ui.small_button(tr(n)).clicked() {
+                    app.settings.home_name = tr(n).to_string();
+                    app.settings.home_lat = *la;
+                    app.settings.home_lon = *lo;
+                    app.passes = None;
                     changed = true;
                 }
             }

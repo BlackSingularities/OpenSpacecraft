@@ -21,11 +21,15 @@ pub struct Settings {
     /// Skala interfejsu 0,75–2.
     pub ui_scale: f32,
     pub tour_done: bool,
+    /// Miejsce obserwatora (przeloty satelitów).
+    pub home_name: String,
+    pub home_lat: f64,
+    pub home_lon: f64,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { auto_update: true, vsync: true, lang: String::new(), render_scale: 1.0, stars: 1.0, high_contrast: false, ui_scale: 1.0, tour_done: false }
+        Self { auto_update: true, vsync: true, lang: String::new(), render_scale: 1.0, stars: 1.0, high_contrast: false, ui_scale: 1.0, tour_done: false, home_name: "Warszawa".into(), home_lat: 52.23, home_lon: 21.01 }
     }
 }
 

@@ -256,6 +256,105 @@ fn play_launch(app: &mut App, l: &sats::Launch, cat: &sats::Catalog) {
     }
 }
 
+/// Kamera nad kosmodromem (Ziemia w środku, kosmodrom zwrócony do kamery).
+pub fn look_at_site(app: &mut App, lat: f64, lon: f64) {
+    let jd = app.clock.jd;
+    let (la, lo) = (lat.to_radians(), lon.to_radians());
+    let dir = crate::astro::bodies::orientation(crate::astro::bodies::EARTH, jd) * glam::DVec3::new(la.cos() * lo.cos(), la.cos() * lo.sin(), la.sin());
+    app.selection = Selection::None;
+    app.set_focus(crate::app::Focus::Body(crate::astro::bodies::EARTH), Some(crate::astro::bodies::get(crate::astro::bodies::EARTH).radius * 3.2));
+    app.cam.yaw = dir.y.atan2(dir.x);
+    app.cam.pitch = dir.z.clamp(-1.0, 1.0).asin().clamp(-1.4, 1.4);
+}
+
+/// Nadchodzące starty (Launch Library 2) z odliczaniem do rzeczywistej chwili.
+fn upcoming_list(app: &mut App, ui: &mut egui::Ui) {
+    let ctx = ui.ctx().clone();
+    let now = time::now();
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(format!("{}  {}", theme::icon::TIMER, tr("Nadchodzące starty"))).size(15.0).strong());
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if app.upcoming.loading() {
+                ui.add(egui::Spinner::new().size(13.0));
+            } else if ui.small_button(theme::icon::ARROWS_CLOCKWISE).on_hover_text(tr("Odśwież listę")).clicked() {
+                app.upcoming.load(&ctx, true);
+            }
+        });
+    });
+    let Some(list) = app.upcoming.get(&ctx) else {
+        match app.upcoming.error() {
+            Some(e) => {
+                ui.label(RichText::new(tr("Nie udało się pobrać nadchodzących startów.")).small().color(theme::WARN)).on_hover_text(e);
+            }
+            None => {
+                ui.label(RichText::new(tr("Pobieranie z Launch Library 2…")).small().color(theme::paper_3()));
+            }
+        }
+        return;
+    };
+    ctx.request_repaint_after(std::time::Duration::from_secs(1));
+    let shown: Vec<(usize, &crate::upcoming::Upcoming)> = list.iter().enumerate().filter(|(_, u)| u.jd > now - 2.0 / 24.0).take(12).collect();
+    if shown.is_empty() {
+        ui.label(RichText::new(tr("Brak zapowiedzianych startów.")).small().color(theme::paper_3()));
+    }
+    for (k, u) in shown {
+        let sel = app.upcoming_sel == Some(k);
+        let (rect, resp) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 42.0), egui::Sense::click());
+        let p = ui.painter();
+        p.rect_filled(rect, 8.0, if sel { theme::BRASS_DIM } else if resp.hovered() { Color32::from_white_alpha(16) } else { Color32::from_white_alpha(5) });
+        let col = if u.go() { theme::OK } else { theme::paper_3() };
+        p.circle_filled(rect.left_center() + egui::vec2(12.0, 0.0), 4.0, col);
+        let clip = ui.painter_at(rect.shrink2(egui::vec2(4.0, 0.0)));
+        let cd = if u.precise() { crate::upcoming::countdown(u.jd, now) } else { tf!("ok. {}", time::fmt_date(u.jd)) };
+        let cd_g = ui.painter().layout_no_wrap(cd, egui::FontId::monospace(12.0), if u.jd > now { theme::BRASS } else { theme::OK });
+        let cd_w = cd_g.size().x;
+        clip.galley(egui::pos2(rect.right() - 8.0 - cd_w, rect.top() + 5.0), cd_g, theme::BRASS);
+        let title_clip = ui.painter_at(egui::Rect::from_min_max(rect.min, egui::pos2(rect.right() - cd_w - 14.0, rect.bottom())));
+        title_clip.text(rect.left_top() + egui::vec2(26.0, 5.0), egui::Align2::LEFT_TOP, &u.name, egui::FontId::proportional(13.0), theme::PAPER);
+        clip.text(rect.left_bottom() + egui::vec2(26.0, -5.0), egui::Align2::LEFT_BOTTOM, format!("{}  ·  {}", crate::ui::sky::local_time(u.jd), u.location), egui::FontId::proportional(10.5), theme::paper_3());
+        let resp = resp.on_hover_text(tr("Kliknij, by zobaczyć kosmodrom na globie"));
+        if resp.clicked() {
+            if sel {
+                app.upcoming_sel = None;
+            } else {
+                app.upcoming_sel = Some(k);
+                app.clock.jd = now;
+                app.clock.rate = 1.0;
+                look_at_site(app, u.lat, u.lon);
+            }
+        }
+        if sel {
+            egui::Frame::new().fill(Color32::from_white_alpha(8)).corner_radius(8.0).inner_margin(8.0).show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                super::fact(ui, "Rakieta", &u.rocket);
+                super::fact(ui, "Wykonawca", &u.provider);
+                super::fact(ui, "Stanowisko", &u.pad);
+                if !u.orbit.is_empty() {
+                    super::fact(ui, "Orbita", &u.orbit);
+                }
+                super::fact_mono(ui, "Termin (UTC)", time::fmt_datetime(u.jd));
+                let st = match u.status.as_str() {
+                    "Go" => tr("potwierdzony (Go)").to_string(),
+                    "TBD" => tr("termin niepewny (TBD)").to_string(),
+                    "TBC" => tr("termin do potwierdzenia (TBC)").to_string(),
+                    "Hold" => tr("wstrzymany").to_string(),
+                    "Success" => tr("udany").to_string(),
+                    "Failure" => tr("nieudany").to_string(),
+                    s => s.to_string(),
+                };
+                super::fact(ui, "Stan", st);
+                if !u.mission.is_empty() {
+                    ui.add(egui::Label::new(RichText::new(&u.mission).small().color(theme::paper_2())).wrap());
+                }
+            });
+        }
+    }
+    ui.horizontal_wrapped(|ui| {
+        ui.label(RichText::new(tr("Dane:")).small().color(theme::paper_3()));
+        ui.hyperlink_to(RichText::new("Launch Library 2 (The Space Devs)").small(), crate::upcoming::SOURCE);
+    });
+}
+
 fn launches_tab(app: &mut App, ui: &mut egui::Ui) {
     let cat = app.sats.current();
     let db = missions::db();
@@ -263,6 +362,9 @@ fn launches_tab(app: &mut App, ui: &mut egui::Ui) {
     let year = app.launch_year.unwrap_or(sim_year).clamp(1957, time::year(time::now()));
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
         ui.set_max_width(CATALOG_W - 28.0);
+        upcoming_list(app, ui);
+        ui.add_space(6.0);
+        ui.separator();
         ui.horizontal(|ui| {
             if ui.button(theme::icon::CARET_LEFT).clicked() {
                 app.launch_year = Some((year - 1).max(1957));

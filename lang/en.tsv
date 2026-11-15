@@ -424,3 +424,78 @@ najstarsze	oldest
 Odtwórz	Replay
 Przenieś zegar na start i odtwórz misję etap po etapie	Move the clock to launch and replay the mission step by step
 Na zdjęciu:	Pictured:
+Nadchodzące starty	Upcoming launches
+Odśwież listę	Refresh the list
+Nie udało się pobrać nadchodzących startów.	Could not download upcoming launches.
+Pobieranie z Launch Library 2…	Downloading from Launch Library 2…
+Brak zapowiedzianych startów.	No launches announced.
+Kliknij, by zobaczyć kosmodrom na globie	Click to see the launch site on the globe
+potwierdzony (Go)	confirmed (Go)
+termin niepewny (TBD)	date uncertain (TBD)
+termin do potwierdzenia (TBC)	date to be confirmed (TBC)
+wstrzymany	on hold
+Dane:	Data:
+Program sam prowadzi odtwarzanie: zwalnia i zbliża kamerę przy odłączeniach, lądowaniach i manewrach, przyspiesza w rejsie. Przeciągnięcie albo przybliżenie myszą wstrzymuje go na chwilę.	The program directs the replay: it slows down and moves the camera in for separations, landings and burns, and speeds up during cruise. Dragging or zooming with the mouse pauses it for a moment.
+Start z bliska: człony i osłony odpadają w chwilach z przebiegu misji	Launch up close: stages and fairings fall away at the moments from the mission timeline
+szer.	lat.
+dł.	lon.
+Ślad naziemny: jasny – za nami, przygaszony – przed nami. Okrąg – skąd satelitę widać nad horyzontem. Kliknij mapę, by ustawić swoje miejsce.	Ground track: bright – behind, dimmed – ahead. The circle shows where the satellite is above the horizon. Click the map to set your location.
+Brak aktualnych elementów orbity – przeloty są tylko orientacyjne.	No current orbital elements – passes are only approximate.
+W ciągu 3 dni od wybranej chwili obiekt nie wzniesie się wyżej niż 10° nad horyzont.	Within 3 days of the chosen moment the object won't rise more than 10° above the horizon.
+widoczny gołym okiem	visible to the naked eye
+niewidoczny (w cieniu albo za dnia)	not visible (in shadow or in daylight)
+Czas lokalny. Kliknij, by przenieść zegar na początek przelotu.	Local time. Click to move the clock to the start of the pass.
+Miejsce zmienisz w ustawieniach albo kliknięciem w mapę.	Change the location in settings or by clicking the map.
+Prędkość · Słońce	Speed · Sun
+Od Słońca	From the Sun
+Od Ziemi	From Earth
+Od Księżyca	From the Moon
+Odcinek od startu do końca misji. Kliknij – pokaż, dwuklik – odtwórz. Złota linia to wybrana data.	A bar from launch to the end of the mission. Click to show, double-click to replay. The gold line is the chosen date.
+wybierz misję	choose a mission
+bez załogi	uncrewed
+Odległości liczą się z trajektorii – chwilę to potrwa.	Distances are computed from the trajectories – this takes a moment.
+ok. {}	approx. {}
+Odpada: {}	Falling away: {}
+Przeloty nad: {}	Passes over: {}
+{:.0}° nad horyzontem	{:.0}° above the horizon
+Wysokość · {}	Altitude · {}
+Prędkość · {}	Speed · {}
+{} osób	{} people
+Ślad nad Ziemią	Ground track
+Starty w dekadach (według rodzaju)	Launches per decade (by type)
+Kraje i agencje	Countries and agencies
+Najczęstsze rakiety	Most used rockets
+Rakieta	Rocket
+Wykonawca	Provider
+Termin (UTC)	Time (UTC)
+Kamera reżyserska	Director camera
+Rakieta z bliska	Rocket up close
+Moje miejsce (przeloty satelitów)	My location (satellite passes)
+Trwające	Ongoing
+Udane	Successful
+Wyniesiona masa statków	Spacecraft mass launched
+Najdłuższa misja	Longest mission
+Lata startów	Launch years
+Agencja	Agency
+Masa statku	Spacecraft mass
+Wysokość rakiety	Rocket height
+Masa rakiety	Rocket mass
+Najdalej od Ziemi	Farthest from Earth
+Etapy w przebiegu	Timeline steps
+Części zestawu	Stack parts
+Załoga (osoby)	Crew (people)
+Lista	List
+Oś czasu	Timeline
+Statystyki	Statistics
+Porównanie	Compare
+zakończone	completed
+trwające	ongoing
+Warszawa	Warsaw
+Kraków	Krakow
+Gdańsk	Gdansk
+Wrocław	Wroclaw
+Poznań	Poznan
+Londyn	London
+Nowy Jork	New York
+Tokio	Tokyo
+historia startów, opisy i zdjęcia startów; nadchodzące starty pobierane na bieżąco	launch history, descriptions and photos; upcoming launches downloaded live
